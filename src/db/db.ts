@@ -36,6 +36,10 @@ export class SuperTrackerDB extends Dexie {
       focusCycles: 'id, side, startedAt, endedAt',
       meta: 'key',
     })
+    // v2: index workouts by import key so re-importing Strong data skips existing workouts.
+    this.version(2).stores({
+      workouts: 'id, startedAt, endedAt, externalId',
+    })
   }
 }
 

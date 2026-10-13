@@ -50,6 +50,25 @@ button {
   cursor: pointer;
 }
 
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+
+@keyframes pop {
+  50% {
+    transform: scale(1.12);
+  }
+}
+
 .pt-safe {
   padding-top: max(env(safe-area-inset-top), 16px);
 }

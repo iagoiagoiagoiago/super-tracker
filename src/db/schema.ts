@@ -57,7 +57,12 @@ export interface Workout {
   templateId?: ID
   notes?: string
   source: 'app' | 'strong'
+  /** Stable key from the import source (Strong: the workout's start timestamp) to skip duplicates on re-import. */
+  externalId?: string
 }
+
+/** Strong's set types: normal (numbered), W = warm-up, D = drop set, F = failure. */
+export type SetKind = 'normal' | 'warmup' | 'drop' | 'failure'
 
 export interface WorkoutSet {
   id: ID
@@ -65,13 +70,15 @@ export interface WorkoutSet {
   exerciseId: ID
   /** Position of the exercise within the workout. */
   exerciseOrder: number
-  /** Position of the set within the exercise, starting at 1. */
+  /** Position of the set within the exercise (all kinds), starting at 1. */
   setNumber: number
+  kind?: SetKind
   /** kg. For bodyweight_plus this is the added weight. */
   weight?: number
   reps?: number
   seconds?: number
   rpe?: number
+  notes?: string
   done: boolean
   completedAt?: number
 }
@@ -147,3 +154,13 @@ export interface MetaEntry {
 }
 
 export const META_LAST_BACKUP = 'lastBackupAt'
+/** ID of the workout currently in progress, if any. */
+export const META_ACTIVE_WORKOUT = 'activeWorkoutId'
+/** Running rest timer: { setId, endsAt, total } (ms timestamps / seconds). */
+export const META_ACTIVE_REST = 'activeRest'
+
+export interface ActiveRest {
+  setId: ID
+  endsAt: number
+  total: number
+}

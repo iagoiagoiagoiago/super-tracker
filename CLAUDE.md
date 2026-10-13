@@ -69,10 +69,17 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
   Use Screen Wake Lock during workouts.
 - History detail: duration, total volume, PR count; per set the e1RM column; PR badges (WEIGHT, 1RM, REPS…).
 - **e1RM uses Brzycki: `weight × 36 / (37 − reps)`** — matches Strong's numbers (90×6 → 105, 80×10 → 107).
+- Volume = Σ weight × reps of completed non-warm-up sets. Bodyweight isn't tracked, so bodyweight_plus sets count
+  only the added weight (Strong adds bodyweight, so its totals are higher for dips and pull-ups).
 - Gym tab: period switch (4W/12W/1Y), headline stats (workouts, volume, avg duration, new PRs), best lifts
   (e1RM + sparkline + delta), sets per muscle per week, recent PRs, most trained, link to exercise library.
-- **Strong CSV import:** one row per set → workouts + sets; build the exercise library from names; auto-map common
-  names to muscle groups, then a review screen for unknown ones. Build against the user's real export file.
+- **Strong CSV import** (`src/import/strong.ts`): columns Date, Workout Name, Duration, Exercise Name, Set Order,
+  Weight, Reps, Distance, Seconds, Notes, Workout Notes, RPE. Set Order is a number, W/D/F, or "Rest Timer" (its
+  Seconds = the exercise's rest). Rows with 0 reps and 0 s are unfilled sets and are skipped. Notes contain literal
+  `\n`. Workouts are keyed `strong:<Date>` so re-imports skip duplicates. Templates are offered for routines done
+  at least twice in the last 120 days of the export. Never commit the user's export; check against it with
+  `STRONG_CSV=/path/to/file.csv npm test`.
+- Active workout state lives in the DB (`meta.activeWorkoutId`, `meta.activeRest`) so closing the app loses nothing.
 
 ### BJJ
 - Technique map: positions are bubbles, techniques are arrows. Top/passing zone above a dashed divider,
@@ -92,7 +99,7 @@ strength trends, BJJ game status counts + focus link, backup reminder (warn afte
 ## Build phases
 
 1. **Foundation** ✅ — scaffold, PWA, Dexie schema, tab navigation, backup/restore, persistent storage, CI.
-2. Gym logger — exercise library, templates, active workout, history, Strong CSV import.
+2. **Gym logger** ✅ — exercise library, templates, active workout, history, Strong CSV import.
 3. Gym stats — PR detection, e1RM, charts, Gym tab.
 4. Technique map — positions, techniques, statuses, filters.
 5. BJJ log — session summary with tapping on the map.

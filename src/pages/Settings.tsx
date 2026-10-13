@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BackupCard } from '../components/BackupCard'
-import { ChevronLeftIcon } from '../components/icons'
+import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons'
 import { Card, Page, SectionTitle } from '../components/ui'
 import { BackupError, parseBackup, restoreBackup } from '../db/backup'
 import { db } from '../db/db'
@@ -63,6 +63,14 @@ export function Settings() {
       </Card>
 
       <BackupCard />
+
+      <Link to="/import/strong" className="flex items-center gap-3 rounded-[20px] bg-surface p-4">
+        <div className="flex-1">
+          <p className="text-[15px] font-bold">Import from Strong</p>
+          <p className="mt-0.5 text-xs text-faint">Workouts, exercises and routines from a Strong CSV export</p>
+        </div>
+        <ChevronRightIcon size={18} className="text-faint" />
+      </Link>
 
       <Card>
         <SectionTitle>Restore</SectionTitle>
