@@ -63,6 +63,33 @@ input[type='number']::-webkit-outer-spin-button {
   }
 }
 
+@keyframes map-flow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+.map-flow {
+  animation: map-flow 1.6s linear infinite;
+}
+
+@keyframes map-breathe {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.map-breathe {
+  animation: map-breathe 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-flow,
+  .map-breathe {
+    animation: none;
+  }
+}
+
 @keyframes pop {
   50% {
     transform: scale(1.12);

@@ -90,6 +90,14 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
   bottom/guard below. Neon color = status; edge thickness/brightness = how often it's hit. Filters: All /
   Bucket list (status want) / Focus. The map starts **empty**: adding a position and dragging an arrow between
   two bubbles must be effortless. Techniques can also be created from the session log.
+- Map implementation (`src/components/TechniqueMap.tsx`, `src/bjj/map.ts`): custom SVG, no graph library.
+  World coordinates with the divider at y = 0 (a position's side is derived from its y on drag). Layers: goo
+  (thick blurred strokes + blobs through a threshold filter = the slime), glow cores, white flow dashes on
+  hitting/A-game techniques, direction chevrons, invisible wide hit paths, nodes, labels. Gestures: drag
+  background = pan, pinch/wheel = zoom, drag node = move, tap node/edge = select, drag the + handle of the
+  selected node onto another node = new technique (or "+ Technique from here", then tap the target).
+  Fits all positions once on first open, then only the user moves the view. Edge width uses `edgeWidth(status,
+  hits)`; hits come from session logs in Phase 5.
 - Session log (summary, mostly tapping): class type, duration, RPE, taught, hit, what got me, rounds,
   "worked on focus?" (only when a focus cycle is active), what worked / problem / next focus.
 - Focus tab: one focus position per side (top + bottom), each a cycle with start date and goal; archived cycles
@@ -105,7 +113,7 @@ strength trends, BJJ game status counts + focus link, backup reminder (warn afte
 1. **Foundation** ✅ — scaffold, PWA, Dexie schema, tab navigation, backup/restore, persistent storage, CI.
 2. **Gym logger** ✅ — exercise library, templates, active workout, history, Strong CSV import.
 3. **Gym stats** ✅ — PR detection, e1RM, charts, Gym tab.
-4. Technique map — positions, techniques, statuses, filters.
+4. **Technique map** ✅ — positions, techniques, statuses, filters.
 5. BJJ log — session summary with tapping on the map.
 6. Focus tab — cycles per side, technique panel, suggestion rules.
 7. Dashboard — heatmap, load, trends, BJJ growth.
