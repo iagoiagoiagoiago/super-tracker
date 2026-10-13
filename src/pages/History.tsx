@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
+import { TrophyIcon } from '../components/PRBadge'
 import { EmptyState, Page } from '../components/ui'
+import { useGymData } from '../gym/useGymData'
 import { db } from '../db/db'
 import type { WorkoutSet } from '../db/schema'
 import { bestSet, summarize, type WorkoutSummary } from '../gym/summaries'
@@ -27,6 +29,7 @@ export function History() {
     ].sort((a, b) => b.at - a.at)
   })
 
+  const gym = useGymData()
   const months = new Map<string, Entry[]>()
   for (const e of entries ?? []) {
     const m = new Date(e.at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
@@ -47,7 +50,7 @@ export function History() {
             {month} <span className="text-dim">· {list.length}</span>
           </h2>
           {list.map((e) =>
-            e.kind === 'gym' ? <WorkoutCard key={e.s.workout.id} s={e.s} /> : null,
+            e.kind === 'gym' ? <WorkoutCard key={e.s.workout.id} s={e.s} prs={gym?.prCountByWorkout.get(e.s.workout.id) ?? 0} /> : null,
           )}
         </section>
       ))}
@@ -55,7 +58,7 @@ export function History() {
   )
 }
 
-function WorkoutCard({ s }: { s: WorkoutSummary }) {
+function WorkoutCard({ s, prs }: { s: WorkoutSummary; prs: number }) {
   const d = new Date(s.workout.startedAt)
   return (
     <Link to={`/history/${s.workout.id}`} className="flex flex-col gap-2 rounded-[18px] border border-line p-4 active:bg-surface">
@@ -69,6 +72,12 @@ function WorkoutCard({ s }: { s: WorkoutSummary }) {
         <span>{fmtDuration(s.durationMs)}</span>
         <span>{fmtTonnage(s.volume)}</span>
         <span>{s.blocks.length} exercises</span>
+        {prs > 0 && (
+          <span className="flex items-center gap-1 font-semibold text-[#4ade80]">
+            <TrophyIcon size={12} />
+            {prs} PR{prs > 1 ? 's' : ''}
+          </span>
+        )}
       </div>
       <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-[13px]">
         <span className="font-semibold text-faint">Exercise</span>

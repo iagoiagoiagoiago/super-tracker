@@ -1,11 +1,14 @@
 import type { ExerciseKind, SetKind, WorkoutSet } from '../db/schema'
 
+/** Above this many reps the estimate is unreliable (45 kg × 30 would "estimate" 231 kg), so none is given. */
+export const E1RM_MAX_REPS = 12
+
 /**
  * Estimated one-rep max, Brzycki formula: weight × 36 / (37 − reps).
- * Matches Strong's numbers (90 kg × 6 → 105, 80 kg × 10 → 107). Only for loaded sets of 1–36 reps.
+ * Matches Strong's numbers (90 kg × 6 → 105, 80 kg × 10 → 107). Only for loaded sets of 1–12 reps.
  */
 export function e1rm(weight: number | undefined, reps: number | undefined): number | undefined {
-  if (!weight || !reps || reps < 1 || reps > 36) return undefined
+  if (!weight || !reps || reps < 1 || reps > E1RM_MAX_REPS) return undefined
   if (reps === 1) return weight
   return (weight * 36) / (37 - reps)
 }

@@ -69,6 +69,10 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
   Use Screen Wake Lock during workouts.
 - History detail: duration, total volume, PR count; per set the e1RM column; PR badges (WEIGHT, 1RM, REPS…).
 - **e1RM uses Brzycki: `weight × 36 / (37 − reps)`** — matches Strong's numbers (90×6 → 105, 80×10 → 107).
+  Only computed for 1–12 reps; higher-rep sets get no estimate (it explodes: 45×30 → 231).
+- **PRs** (`src/gym/stats.ts`): per exercise, walking finished workouts in order; WEIGHT / 1RM / VOLUME for
+  weight_reps, WEIGHT / REPS for bodyweight_plus. Warm-ups never count, the first session is the baseline,
+  and only the first set reaching a new best in a workout gets the badge. Matches Strong on the real data.
 - Volume = Σ weight × reps of completed non-warm-up sets. Bodyweight isn't tracked, so bodyweight_plus sets count
   only the added weight (Strong adds bodyweight, so its totals are higher for dips and pull-ups).
 - Gym tab: period switch (4W/12W/1Y), headline stats (workouts, volume, avg duration, new PRs), best lifts
@@ -100,7 +104,7 @@ strength trends, BJJ game status counts + focus link, backup reminder (warn afte
 
 1. **Foundation** ✅ — scaffold, PWA, Dexie schema, tab navigation, backup/restore, persistent storage, CI.
 2. **Gym logger** ✅ — exercise library, templates, active workout, history, Strong CSV import.
-3. Gym stats — PR detection, e1RM, charts, Gym tab.
+3. **Gym stats** ✅ — PR detection, e1RM, charts, Gym tab.
 4. Technique map — positions, techniques, statuses, filters.
 5. BJJ log — session summary with tapping on the map.
 6. Focus tab — cycles per side, technique panel, suggestion rules.

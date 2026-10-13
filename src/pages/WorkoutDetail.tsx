@@ -1,7 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ChevronLeftIcon } from '../components/icons'
+import { PRBadges, TrophyIcon } from '../components/PRBadge'
 import { Page } from '../components/ui'
+import { useGymData } from '../gym/useGymData'
 import { db } from '../db/db'
 import { summarize } from '../gym/summaries'
 import { deleteWorkout, saveWorkoutAsTemplate } from '../gym/workouts'
@@ -18,9 +20,12 @@ export function WorkoutDetail() {
     return summarize(w, sets, exercises)
   }, [id])
 
+  const gym = useGymData()
+
   if (s === null) return <Page title="Not found">{null}</Page>
   if (!s) return null
   const w = s.workout
+  const prCount = gym?.prCountByWorkout.get(w.id) ?? 0
 
   return (
     <Page
@@ -42,7 +47,7 @@ export function WorkoutDetail() {
       <div className="grid grid-cols-3 gap-2">
         <Tile value={fmtDuration(s.durationMs)} label="duration" />
         <Tile value={fmtTonnage(s.volume)} label="volume" />
-        <Tile value={String(s.blocks.reduce((n, b) => n + b.sets.length, 0))} label="sets" />
+        <Tile value={String(prCount)} label={prCount === 1 ? 'PR' : 'PRs'} highlight={prCount > 0} />
       </div>
 
       {w.notes && <p className="whitespace-pre-line rounded-2xl bg-surface p-4 text-sm text-muted">{w.notes}</p>}
@@ -67,6 +72,7 @@ export function WorkoutDetail() {
                       <span className={labels[j].match(/\d/) ? '' : 'font-semibold text-faint'}>{labels[j]}</span>
                       <span>
                         {describeSet(set, b.exercise.kind)}
+                        {gym?.prBySet.get(set.id) && <PRBadges kinds={gym.prBySet.get(set.id)!.kinds} />}
                         {set.notes && <span className="block text-xs text-faint">{set.notes}</span>}
                       </span>
                       <span>{est ? Math.round(est) : ''}</span>
@@ -104,10 +110,13 @@ export function WorkoutDetail() {
   )
 }
 
-function Tile({ value, label }: { value: string; label: string }) {
+function Tile({ value, label, highlight = false }: { value: string; label: string; highlight?: boolean }) {
   return (
     <div className="rounded-2xl bg-surface p-3">
-      <div className="text-[20px] font-bold">{value}</div>
+      <div className={`flex items-center gap-1.5 text-[20px] font-bold ${highlight ? 'text-[#4ade80]' : ''}`}>
+        {highlight && <TrophyIcon size={16} />}
+        {value}
+      </div>
       <div className="text-[11px] text-faint">{label}</div>
     </div>
   )
