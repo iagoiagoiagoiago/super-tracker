@@ -1,0 +1,59 @@
+@import '@fontsource-variable/geist';
+@import 'tailwindcss';
+
+/* Design tokens — keep in sync with CLAUDE.md "Design system". */
+@theme {
+  --font-sans: 'Geist Variable', system-ui, sans-serif;
+
+  --color-bg: #000000;
+  --color-surface: #0e1012;
+  --color-raised: #1a1d21;
+  --color-line: #1e2226;
+  --color-text: #f2f3f5;
+  --color-muted: #8a9098;
+  --color-faint: #6b727a;
+  --color-dim: #4a5058;
+
+  --color-accent: #3d8bff;
+  --color-done: #22c55e;
+  --color-danger: #ff6b5e;
+
+  /* Sport tags */
+  --color-gym: #3d8bff;
+  --color-bjj: #b6ff3b;
+
+  /* BJJ technique statuses (neon) */
+  --color-want: #b86bff;
+  --color-learning: #22e6ff;
+  --color-hitting: #b6ff3b;
+  --color-agame: #ff3da6;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--color-bg);
+}
+
+body {
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 16px);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
