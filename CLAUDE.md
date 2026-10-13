@@ -108,6 +108,14 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
 - Focus tab: one focus position per side (top + bottom), each a cycle with start date and goal; archived cycles
   form a history. Sections: working most, neglected, getting caught, next up (bucket list from this position).
   Rule-based suggestions: dead end, leak, stale, ready to promote.
+- Focus implementation (`src/bjj/focus.ts` = pure `analyzeFocus`, `src/pages/BjjFocus.tsx` at `/bjj/focus`, reached
+  via the Map/Focus large-title switcher). Counts use sessions inside the cycle. "Getting caught" = caught-by
+  techniques touching the focus position OR starting on the opposite side (opponents pass you on a bottom focus,
+  sweep you on a top focus). Rules (thresholds are constants at the top of focus.ts): LEAK caught ≥ 3 by one
+  technique; DEAD END a technique from the focus position hit ≥ 3 whose target has no outgoing technique;
+  STALE "learning" with no log for 21 days; PROMOTE learning → hitting at 3 hits, hitting → A-game at 6 (one-tap
+  button); FOCUS adherence < 40 % over ≥ 3 answered sessions. Starting a cycle ends the active one on that side.
+  The map's Focus filter highlights techniques touching active focus positions.
 
 ### Home dashboard
 Week stats, 12-week consistency heatmap (gym blue / BJJ lime), weekly load (duration × RPE, stacked by sport),
@@ -120,7 +128,7 @@ strength trends, BJJ game status counts + focus link, backup reminder (warn afte
 3. **Gym stats** ✅ — PR detection, e1RM, charts, Gym tab.
 4. **Technique map** ✅ — positions, techniques, statuses, filters.
 5. **BJJ log** ✅ — session summary with tapping on the map.
-6. Focus tab — cycles per side, technique panel, suggestion rules.
+6. **Focus tab** ✅ — cycles per side, technique panel, suggestion rules.
 7. Dashboard — heatmap, load, trends, BJJ growth.
 
 Ship each phase as a working, deployed increment the user can test on his phone.

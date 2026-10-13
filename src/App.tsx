@@ -4,6 +4,7 @@ import { TabBar } from './components/TabBar'
 import { requestPersistentStorage } from './db/storage'
 import { ActiveWorkout } from './pages/ActiveWorkout'
 import { Bjj } from './pages/Bjj'
+import { BjjFocus } from './pages/BjjFocus'
 import { BjjSession } from './pages/BjjSession'
 import { ExerciseDetail } from './pages/ExerciseDetail'
 import { Exercises } from './pages/Exercises'
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/gym/exercises" element={<Exercises />} />
         <Route path="/gym/exercises/:id" element={<ExerciseDetail />} />
         <Route path="/bjj" element={<Bjj />} />
+        <Route path="/bjj/focus" element={<BjjFocus />} />
         <Route path="/bjj/log" element={<BjjSession />} />
         <Route path="/bjj/session/:id" element={<BjjSession />} />
         <Route path="/settings" element={<Settings />} />

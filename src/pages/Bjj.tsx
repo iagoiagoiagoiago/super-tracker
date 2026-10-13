@@ -4,7 +4,8 @@ import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER, STATUS_SHORT, nodeColor } fro
 import { addPosition, addTechnique, deletePosition, deleteTechnique, movePosition, updatePosition, updateTechnique } from '../bjj/ops'
 import { HIT_WINDOW_DAYS, hitCounts, techniqueUsage, type Usage } from '../bjj/sessions'
 import { relativeDays } from '../lib/time'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { BjjNav } from '../components/BjjNav'
 import { Sheet } from '../components/Sheet'
 import { TechniqueMap, type MapFilter, type MapSelection, type TechniqueMapHandle } from '../components/TechniqueMap'
 import { db } from '../db/db'
@@ -14,18 +15,31 @@ const TAB_BAR = 84
 
 export function Bjj() {
   const data = useLiveQuery(async () => {
-    const [positions, techniques, sessions] = await Promise.all([db.positions.toArray(), db.techniques.toArray(), db.bjjSessions.toArray()])
+    const [positions, techniques, sessions, cycles] = await Promise.all([
+      db.positions.toArray(),
+      db.techniques.toArray(),
+      db.bjjSessions.toArray(),
+      db.focusCycles.toArray(),
+    ])
     const since = Date.now() - HIT_WINDOW_DAYS * 86_400_000
-    return { positions, techniques, hits: hitCounts(sessions, since), usage: techniqueUsage(sessions) }
+    const focusIds = new Set(cycles.filter((c) => !c.endedAt).map((c) => c.positionId))
+    return { positions, techniques, hits: hitCounts(sessions, since), usage: techniqueUsage(sessions), focusIds }
   })
+  const focusIds = useMemo(() => data?.focusIds ?? new Set<ID>(), [data])
+  const focusTechniques = useMemo(
+    () => new Set((data?.techniques ?? []).filter((t) => focusIds.has(t.fromId) || focusIds.has(t.toId)).map((t) => t.id)),
+    [data, focusIds],
+  )
+  const location = useLocation()
+  const initialSelect = (location.state as { select?: MapSelection } | null)?.select ?? null
   const positions = useMemo(() => data?.positions ?? [], [data])
   const techniques = useMemo(() => data?.techniques ?? [], [data])
   const posById = useMemo(() => new Map(positions.map((p) => [p.id, p])), [positions])
   const hits = useMemo(() => data?.hits ?? new Map<ID, number>(), [data])
   const usage = useMemo(() => data?.usage ?? new Map<ID, Usage>(), [data])
 
-  const [selection, setSelection] = useState<MapSelection>(null)
-  const [filter, setFilter] = useState<MapFilter>('all')
+  const [selection, setSelection] = useState<MapSelection>(initialSelect)
+  const [filter, setFilter] = useState<MapFilter | 'focus'>('all')
   const [mode, setMode] = useState<'map' | 'list'>('map')
   const [connectFrom, setConnectFrom] = useState<ID | null>(null)
   const [newTech, setNewTech] = useState<{ fromId: ID; toId: ID } | null>(null)
@@ -68,7 +82,8 @@ export function Bjj() {
           positions={positions}
           techniques={techniques}
           hits={hits}
-          filter={filter}
+          filter={filter === 'focus' ? 'all' : filter}
+          highlight={filter === 'focus' ? focusTechniques : undefined}
           selection={selection}
           onSelect={onSelect}
           onMove={(id, x, y) => void movePosition(id, x, y)}
@@ -84,10 +99,10 @@ export function Bjj() {
       <header className="pt-safe pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black via-black/80 to-transparent px-4 pb-6">
         <div className="pointer-events-auto mx-auto flex max-w-lg flex-col gap-3 pt-2">
           <div className="flex items-center justify-between">
-            <h1 className="text-[30px] font-extrabold tracking-tight">Game</h1>
+            <BjjNav />
             <div className="flex gap-2">
-              <Link to="/bjj/log" className="flex h-10 items-center rounded-xl bg-bjj px-3.5 text-sm font-bold text-[#0a0b0c] shadow-[0_0_16px_rgba(182,255,59,0.25)]">
-                Log session
+              <Link to="/bjj/log" aria-label="Log session" className="flex h-10 items-center rounded-xl bg-bjj px-3.5 text-sm font-bold text-[#0a0b0c] shadow-[0_0_16px_rgba(182,255,59,0.25)]">
+                Log
               </Link>
               <IconButton label={mode === 'map' ? 'Show list' : 'Show map'} onClick={() => setMode(mode === 'map' ? 'list' : 'map')}>
                 {mode === 'map' ? <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /> : <><circle cx="6" cy="17" r="2.5" /><circle cx="18" cy="17" r="2.5" /><circle cx="12" cy="6" r="2.5" /><path d="M8 15.5L11 8M16 15.5L13 8M8.5 17h7" /></>}
@@ -100,14 +115,14 @@ export function Bjj() {
           {!empty && (
             <>
               <div className="flex gap-1.5">
-                {(['all', 'bucket'] as const).map((f) => (
+                {(focusIds.size ? (['all', 'bucket', 'focus'] as const) : (['all', 'bucket'] as const)).map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
                     aria-pressed={filter === f}
                     className={`h-[30px] rounded-full px-3 text-[13px] font-semibold ${filter === f ? 'bg-text text-bg' : 'border border-line bg-black/60 text-muted'}`}
                   >
-                    {f === 'all' ? 'All' : `Bucket list · ${techniques.filter((t) => t.status === 'want').length}`}
+                    {f === 'all' ? 'All' : f === 'focus' ? 'Focus' : `Bucket list · ${techniques.filter((t) => t.status === 'want').length}`}
                   </button>
                 ))}
               </div>
