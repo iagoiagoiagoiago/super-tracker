@@ -5,7 +5,8 @@ import { ChevronLeftIcon } from '../components/icons'
 import { PRBadges } from '../components/PRBadge'
 import { Card, Page, SectionTitle } from '../components/ui'
 import { db } from '../db/db'
-import type { Exercise, ExerciseKind, MuscleGroup, WorkoutSet } from '../db/schema'
+import { META_PINNED_LIFTS, type Exercise, type ExerciseKind, type MuscleGroup, type WorkoutSet } from '../db/schema'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { exerciseSeries, type SessionPoint } from '../gym/stats'
 import { useGymData } from '../gym/useGymData'
 import { EXERCISE_KINDS, MUSCLE_GROUPS } from '../lib/exerciseCatalog'
@@ -61,6 +62,14 @@ function ExerciseView({ exercise, data }: { exercise: Exercise; data: NonNullabl
     return { series, sessions, records, workouts }
   }, [data, exercise])
 
+  const pinned = useLiveQuery(async () => ((await db.meta.get(META_PINNED_LIFTS))?.value as string[] | undefined) ?? [])
+  const isPinned = pinned?.includes(exercise.id) ?? false
+  const togglePin = async () => {
+    const cur = pinned ?? []
+    const next = isPinned ? cur.filter((id) => id !== exercise.id) : [...cur, exercise.id].slice(-4)
+    await db.meta.put({ key: META_PINNED_LIFTS, value: next })
+  }
+
   const m = METRICS[metric]
   const points = view.series.flatMap((p) => {
     const v = m.get(p)
@@ -96,6 +105,19 @@ function ExerciseView({ exercise, data }: { exercise: Exercise; data: NonNullabl
         </div>
         <LineChart points={points} format={m.fmt} label={m.chart} />
       </Card>
+
+      {exercise.kind === 'weight_reps' && (
+        <button
+          onClick={togglePin}
+          aria-pressed={isPinned}
+          className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold ${isPinned ? 'bg-accent/15 text-accent' : 'bg-raised text-muted'}`}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" />
+          </svg>
+          {isPinned ? 'Pinned to Home' : 'Pin to Home'}
+        </button>
+      )}
 
       {view.records.length > 0 && (
         <Card>

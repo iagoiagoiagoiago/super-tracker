@@ -16,7 +16,7 @@ home screen. All data stays on the device. Public-facing quality matters: the re
 ## Stack
 
 React 19 + TypeScript + Vite · Tailwind v4 (tokens in `src/index.css` `@theme`) · Dexie + dexie-react-hooks ·
-react-router · vite-plugin-pwa · Vitest (+ fake-indexeddb). Planned: React Flow (technique map), Recharts (charts).
+react-router · vite-plugin-pwa · Vitest (+ fake-indexeddb). Map and charts are custom SVG (no chart/graph libs).
 Hosting: Vercel (`vercel.json` rewrites all routes to `index.html`).
 
 Commands: `npm run dev` · `npm run build` · `npm test` · `npm run lint`. CI runs lint, test, build on every push.
@@ -120,6 +120,14 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
 ### Home dashboard
 Week stats, 12-week consistency heatmap (gym blue / BJJ lime), weekly load (duration × RPE, stacked by sport),
 strength trends, BJJ game status counts + focus link, backup reminder (warn after 7 days).
+- Implementation: `src/dashboard/activity.ts` (pure: `activityGrid`, `weeklyLoad`, `weekStreak`; weeks start on
+  Monday, local time) and `src/dashboard/charts.tsx` (`Heatmap`, `LoadChart`, tap-to-inspect, legend on every
+  two-series chart). Gym workouts have no RPE, so their load uses `GYM_ASSUMED_RPE` = 7 (stated under the chart).
+  Days with both sports are split diagonally. Strength shows lifts pinned from an exercise page
+  (`meta.pinnedLifts`, max 4), else the most-trained loaded lifts of the last 12 weeks.
+- Charts are hand-built SVG/HTML (no Recharts/React Flow) to keep the bundle small and the look exact.
+  The BJJ lime fails the categorical lightness-balance check against gym blue (it's the brand neon) but passes
+  CVD separation and contrast; identity never relies on color alone (legends + tap labels).
 
 ## Build phases
 
@@ -129,6 +137,8 @@ strength trends, BJJ game status counts + focus link, backup reminder (warn afte
 4. **Technique map** ✅ — positions, techniques, statuses, filters.
 5. **BJJ log** ✅ — session summary with tapping on the map.
 6. **Focus tab** ✅ — cycles per side, technique panel, suggestion rules.
-7. Dashboard — heatmap, load, trends, BJJ growth.
+7. **Dashboard** ✅ — heatmap, load, trends, BJJ growth.
+
+All seven phases are shipped. New work: keep each change a small, deployed, tested increment.
 
 Ship each phase as a working, deployed increment the user can test on his phone.

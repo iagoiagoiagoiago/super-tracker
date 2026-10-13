@@ -107,6 +107,30 @@ export function exerciseSeries(exercise: Exercise, workouts: Map<ID, Workout>, s
   return [...by.values()].sort((a, b) => a.t - b.t)
 }
 
+/** e1RM trend of one exercise between `from` and `now` (best e1RM per session). */
+export function liftTrend(exercise: Exercise, workouts: Workout[], sets: WorkoutSet[], from: number, now: number): LiftSummary {
+  const wMap = new Map(workouts.filter((w) => w.endedAt && w.startedAt >= from && w.startedAt <= now).map((w) => [w.id, w]))
+  const own = sets.filter((s) => s.exerciseId === exercise.id && s.done && s.kind !== 'warmup' && wMap.has(s.workoutId))
+  const points = exerciseSeries(exercise, wMap, own).flatMap((p) => (p.e1rm ? [p.e1rm] : []))
+  let best = 0
+  let bestSet: WorkoutSet | undefined
+  for (const s of own) {
+    const est = setE1rm(s, exercise.kind) ?? 0
+    if (est > best) {
+      best = est
+      bestSet = s
+    }
+  }
+  return {
+    exercise,
+    best,
+    bestSet,
+    delta: points.length > 1 ? points[points.length - 1] - points[0] : 0,
+    points,
+    sessions: new Set(own.map((s) => s.workoutId)).size,
+  }
+}
+
 // ---------- Gym tab ----------
 
 export type RangeKey = '4W' | '12W' | '1Y' | 'ALL'

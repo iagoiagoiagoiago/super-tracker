@@ -159,6 +159,9 @@ export const META_ACTIVE_WORKOUT = 'activeWorkoutId'
 /** Running rest timer: { setId, endsAt, total } (ms timestamps / seconds). */
 export const META_ACTIVE_REST = 'activeRest'
 
+/** Exercise IDs pinned to the Home strength card. */
+export const META_PINNED_LIFTS = 'pinnedLifts'
+
 export interface ActiveRest {
   setId: ID
   endsAt: number
