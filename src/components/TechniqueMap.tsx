@@ -53,6 +53,8 @@ export function TechniqueMap({
   topInset = 0,
   bottomInset = 0,
   selectReserve = 0,
+  readOnly = false,
+  highlight,
 }: {
   positions: Position[]
   techniques: Technique[]
@@ -68,6 +70,10 @@ export function TechniqueMap({
   bottomInset?: number
   /** Screen height covered from the bottom while something is selected (details panel + tab bar). */
   selectReserve?: number
+  /** Picker mode: no moving positions or creating techniques, taps only select. */
+  readOnly?: boolean
+  /** Techniques to emphasise (e.g. the ones picked in a session log); the rest are dimmed. */
+  highlight?: Set<ID>
 }) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -113,6 +119,7 @@ export function TechniqueMap({
   const selectedTech = selection?.type === 'technique' ? techById.get(selection.id) : undefined
 
   const edgeOpacity = (t: Technique) => {
+    if (highlight && highlight.size) return highlight.has(t.id) ? 1 : 0.28
     if (filter === 'bucket' && t.status !== 'want') return 0.12
     if (selectedPos && t.fromId !== selectedPos && t.toId !== selectedPos) return 0.2
     if (selectedTech && t.id !== selectedTech.id) return 0.2
@@ -183,6 +190,11 @@ export function TechniqueMap({
       setUserView({ ...g.v0, x: g.v0.x + p.x - g.sx, y: g.v0.y + p.y - g.sy })
     } else if (g.type === 'node') {
       if (!g.moved && Math.hypot(p.x - g.sx, p.y - g.sy) < 7) return
+      if (readOnly) {
+        // In picker mode a drag that starts on a node pans the map instead.
+        gesture.current = { type: 'pan', sx: p.x, sy: p.y, v0: viewRef.current, moved: true }
+        return
+      }
       g.moved = true
       const w = toWorld(p)
       setDragPos({ id: g.id, x: w.x + g.ox, y: w.y + g.oy })
@@ -261,7 +273,10 @@ export function TechniqueMap({
 
   const colorOf = (t: Technique) => STATUS_COLOR[t.status]
   const showTechLabels = (t: Technique) =>
-    view.k >= 1.35 || t.id === selectedTech?.id || (selectedPos !== null && (t.fromId === selectedPos || t.toId === selectedPos))
+    view.k >= 1.35 ||
+    t.id === selectedTech?.id ||
+    !!highlight?.has(t.id) ||
+    (selectedPos !== null && (t.fromId === selectedPos || t.toId === selectedPos))
   const selected = selectedPos ? posMap.get(selectedPos) : undefined
   const dividerY = view.y
 
@@ -342,7 +357,8 @@ export function TechniqueMap({
             <g fill="none" stroke="#fff" strokeWidth={1.3} strokeLinecap="round" strokeDasharray="2 14" opacity={0.55}>
               {edges.map((g) => {
                 const t = techById.get(g.id)!
-                if (t.status !== 'hitting' && t.status !== 'agame' && t.id !== selectedTech?.id) return null
+                const pulse = highlight?.size ? highlight.has(t.id) : t.status === 'hitting' || t.status === 'agame' || t.id === selectedTech?.id
+                if (!pulse) return null
                 return <path key={g.id} d={g.path} className="map-flow" opacity={edgeOpacity(t)} />
               })}
             </g>
@@ -415,7 +431,7 @@ export function TechniqueMap({
             </g>
 
             {/* Connect handle on the selected position + live connection line */}
-            {selected && selected.kind === 'position' && !cursor && (
+            {selected && selected.kind === 'position' && !cursor && !readOnly && (
               <g data-handle={selected.id} style={{ cursor: 'crosshair' }}>
                 <circle cx={selected.x + 22} cy={selected.y - 22} r={16} fill="transparent" />
                 <circle cx={selected.x + 22} cy={selected.y - 22} r={9} fill="#0e1012" stroke="#f2f3f5" strokeWidth={1.4} />

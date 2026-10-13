@@ -100,6 +100,11 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
   hits)`; hits come from session logs in Phase 5.
 - Session log (summary, mostly tapping): class type, duration, RPE, taught, hit, what got me, rounds,
   "worked on focus?" (only when a focus cycle is active), what worked / problem / next focus.
+- Session log implementation (`src/pages/BjjSession.tsx`, `src/bjj/sessions.ts`): one page for new and existing
+  sessions (`/bjj/log`, `/bjj/session/:id`). Techniques are picked in `TechniquePicker` (read-only mini map with
+  multi-highlight + search list; "+ New" creates a technique, and new positions if needed, without leaving the
+  log). Map edge thickness = sessions hit in the last 90 days (`hitCounts`); technique panel shows hit/taught/
+  caught counts (`techniqueUsage`). Load = minutes × RPE (`sessionLoad`), used by the dashboard.
 - Focus tab: one focus position per side (top + bottom), each a cycle with start date and goal; archived cycles
   form a history. Sections: working most, neglected, getting caught, next up (bucket list from this position).
   Rule-based suggestions: dead end, leak, stale, ready to promote.
@@ -114,7 +119,7 @@ strength trends, BJJ game status counts + focus link, backup reminder (warn afte
 2. **Gym logger** ✅ — exercise library, templates, active workout, history, Strong CSV import.
 3. **Gym stats** ✅ — PR detection, e1RM, charts, Gym tab.
 4. **Technique map** ✅ — positions, techniques, statuses, filters.
-5. BJJ log — session summary with tapping on the map.
+5. **BJJ log** ✅ — session summary with tapping on the map.
 6. Focus tab — cycles per side, technique panel, suggestion rules.
 7. Dashboard — heatmap, load, trends, BJJ growth.
 

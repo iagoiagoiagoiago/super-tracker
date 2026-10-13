@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { NodesIcon } from '../components/icons'
+import { Link, useNavigate } from 'react-router-dom'
+import { ChevronRightIcon, NodesIcon } from '../components/icons'
 import { Sheet } from '../components/Sheet'
-import { Page, PhaseTag } from '../components/ui'
+import { Page } from '../components/ui'
 import { db } from '../db/db'
 import type { Exercise, Template } from '../db/schema'
 import { getActiveWorkoutId, lastPerformedFor, startWorkout } from '../gym/workouts'
@@ -54,14 +54,14 @@ export function Train() {
         </button>
       )}
 
-      <div className="flex items-center gap-3 rounded-[20px] bg-surface p-4 opacity-70">
+      <Link to="/bjj/log" className="flex items-center gap-3 rounded-[20px] bg-surface p-4 active:bg-raised">
         <NodesIcon className="text-bjj" />
         <div className="flex-1">
           <p className="font-bold">Log BJJ session</p>
           <p className="text-xs text-faint">Session summary, tapped from your map</p>
         </div>
-        <PhaseTag phase={5} />
-      </div>
+        <ChevronRightIcon size={18} className="text-faint" />
+      </Link>
 
       <div className="mt-2 flex items-center justify-between">
         <h2 className="text-[24px] font-extrabold">Templates</h2>

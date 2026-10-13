@@ -2,6 +2,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { STATUS_COLOR, STATUS_LABEL, STATUS_ORDER, STATUS_SHORT, nodeColor } from '../bjj/map'
 import { addPosition, addTechnique, deletePosition, deleteTechnique, movePosition, updatePosition, updateTechnique } from '../bjj/ops'
+import { HIT_WINDOW_DAYS, hitCounts, techniqueUsage, type Usage } from '../bjj/sessions'
+import { relativeDays } from '../lib/time'
+import { Link } from 'react-router-dom'
 import { Sheet } from '../components/Sheet'
 import { TechniqueMap, type MapFilter, type MapSelection, type TechniqueMapHandle } from '../components/TechniqueMap'
 import { db } from '../db/db'
@@ -11,13 +14,15 @@ const TAB_BAR = 84
 
 export function Bjj() {
   const data = useLiveQuery(async () => {
-    const [positions, techniques] = await Promise.all([db.positions.toArray(), db.techniques.toArray()])
-    return { positions, techniques }
+    const [positions, techniques, sessions] = await Promise.all([db.positions.toArray(), db.techniques.toArray(), db.bjjSessions.toArray()])
+    const since = Date.now() - HIT_WINDOW_DAYS * 86_400_000
+    return { positions, techniques, hits: hitCounts(sessions, since), usage: techniqueUsage(sessions) }
   })
   const positions = useMemo(() => data?.positions ?? [], [data])
   const techniques = useMemo(() => data?.techniques ?? [], [data])
   const posById = useMemo(() => new Map(positions.map((p) => [p.id, p])), [positions])
-  const hits = useMemo(() => new Map<ID, number>(), [])
+  const hits = useMemo(() => data?.hits ?? new Map<ID, number>(), [data])
+  const usage = useMemo(() => data?.usage ?? new Map<ID, Usage>(), [data])
 
   const [selection, setSelection] = useState<MapSelection>(null)
   const [filter, setFilter] = useState<MapFilter>('all')
@@ -81,6 +86,9 @@ export function Bjj() {
           <div className="flex items-center justify-between">
             <h1 className="text-[30px] font-extrabold tracking-tight">Game</h1>
             <div className="flex gap-2">
+              <Link to="/bjj/log" className="flex h-10 items-center rounded-xl bg-bjj px-3.5 text-sm font-bold text-[#0a0b0c] shadow-[0_0_16px_rgba(182,255,59,0.25)]">
+                Log session
+              </Link>
               <IconButton label={mode === 'map' ? 'Show list' : 'Show map'} onClick={() => setMode(mode === 'map' ? 'list' : 'map')}>
                 {mode === 'map' ? <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /> : <><circle cx="6" cy="17" r="2.5" /><circle cx="18" cy="17" r="2.5" /><circle cx="12" cy="6" r="2.5" /><path d="M8 15.5L11 8M16 15.5L13 8M8.5 17h7" /></>}
               </IconButton>
@@ -147,6 +155,7 @@ export function Bjj() {
           <PositionPanel
             position={selectedPos}
             techniques={techniques}
+            hits={hits}
             posById={posById}
             onConnect={() => setConnectFrom(selectedPos.id)}
             onEdit={() => setEditPos(selectedPos)}
@@ -158,6 +167,8 @@ export function Bjj() {
         <Panel>
           <TechniquePanel
             technique={selectedTech}
+            usage={usage.get(selectedTech.id)}
+            hits90={hits.get(selectedTech.id) ?? 0}
             posById={posById}
             onEdit={() => setEditTech(selectedTech)}
             onOpenPosition={(id) => setSelection({ type: 'position', id })}
@@ -266,12 +277,15 @@ function StatusPicker({ value, onChange }: { value: TechniqueStatus; onChange: (
   )
 }
 
-function TechRow({ t, other, arrow, onClick }: { t: Technique; other?: string; arrow: '→' | '←'; onClick: () => void }) {
+function TechRow({ t, other, arrow, hits = 0, onClick }: { t: Technique; other?: string; arrow: '→' | '←'; hits?: number; onClick: () => void }) {
   return (
     <li>
       <button onClick={onClick} className="flex w-full items-center gap-2.5 py-2 text-left">
         <StatusDot status={t.status} />
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{t.name}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+          {t.name}
+          {hits > 0 && <span className="ml-1.5 text-xs font-normal text-[#d6ff8f]">{hits}×</span>}
+        </span>
         <span className="shrink-0 truncate text-xs text-faint">
           {arrow} {other}
         </span>
@@ -283,6 +297,7 @@ function TechRow({ t, other, arrow, onClick }: { t: Technique; other?: string; a
 function PositionPanel({
   position,
   techniques,
+  hits,
   posById,
   onConnect,
   onEdit,
@@ -290,6 +305,7 @@ function PositionPanel({
 }: {
   position: Position
   techniques: Technique[]
+  hits: Map<ID, number>
   posById: Map<ID, Position>
   onConnect: () => void
   onEdit: () => void
@@ -312,8 +328,8 @@ function PositionPanel({
       </div>
       {out.length + into.length > 0 && (
         <ul className="divide-y divide-line border-t border-line">
-          {out.map((t) => <TechRow key={t.id} t={t} arrow="→" other={posById.get(t.toId)?.name} onClick={() => onOpenTechnique(t)} />)}
-          {into.map((t) => <TechRow key={t.id} t={t} arrow="←" other={posById.get(t.fromId)?.name} onClick={() => onOpenTechnique(t)} />)}
+          {out.map((t) => <TechRow key={t.id} t={t} arrow="→" hits={hits.get(t.id)} other={posById.get(t.toId)?.name} onClick={() => onOpenTechnique(t)} />)}
+          {into.map((t) => <TechRow key={t.id} t={t} arrow="←" hits={hits.get(t.id)} other={posById.get(t.fromId)?.name} onClick={() => onOpenTechnique(t)} />)}
         </ul>
       )}
       {position.kind === 'position' && (
@@ -330,11 +346,15 @@ function PositionPanel({
 
 function TechniquePanel({
   technique,
+  usage,
+  hits90,
   posById,
   onEdit,
   onOpenPosition,
 }: {
   technique: Technique
+  usage?: Usage
+  hits90: number
   posById: Map<ID, Position>
   onEdit: () => void
   onOpenPosition: (id: ID) => void
@@ -355,7 +375,22 @@ function TechniquePanel({
         <button onClick={onEdit} className="h-8 shrink-0 rounded-lg bg-raised px-3 text-xs font-semibold text-muted">Edit</button>
       </div>
       <StatusPicker value={technique.status} onChange={(status) => updateTechnique(technique.id, { status })} />
+      <div className="grid grid-cols-3 gap-1.5 text-center">
+        <MiniStat value={hits90} label="hit · 90 days" tone="#d6ff8f" />
+        <MiniStat value={usage?.taught ?? 0} label="taught" />
+        <MiniStat value={usage?.caught ?? 0} label="caught by" tone={usage?.caught ? '#ff9b92' : undefined} />
+      </div>
+      {usage?.lastSeen && <p className="text-xs text-faint">Last logged {relativeDays(usage.lastSeen)}</p>}
       {technique.notes && <p className="whitespace-pre-line text-[13px] leading-relaxed text-muted">{technique.notes}</p>}
+    </div>
+  )
+}
+
+function MiniStat({ value, label, tone }: { value: number; label: string; tone?: string }) {
+  return (
+    <div className="rounded-[10px] bg-[#15181b] py-2">
+      <div className="text-[17px] font-bold" style={{ color: value ? tone : undefined }}>{value}</div>
+      <div className="text-[10px] text-faint">{label}</div>
     </div>
   )
 }
