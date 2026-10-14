@@ -75,8 +75,17 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
   and only the first set reaching a new best in a workout gets the badge. Matches Strong on the real data.
 - Volume = Σ weight × reps of completed non-warm-up sets. Bodyweight isn't tracked, so bodyweight_plus sets count
   only the added weight (Strong adds bodyweight, so its totals are higher for dips and pull-ups).
-- Gym tab: period switch (4W/12W/1Y), headline stats (workouts, volume, avg duration, new PRs), best lifts
-  (e1RM + sparkline + delta), sets per muscle per week, recent PRs, most trained, link to exercise library.
+- Gym tab: period switch (4W/12W/1Y/All), headline stats (workouts, avg working sets/week, avg duration, new PRs),
+  best lifts (e1RM + sparkline + delta), sets per muscle per week grouped Push / Pull / Legs / Other (every tracked
+  muscle listed, zeros dimmed), Progress (exercises | muscles), recent PRs, most trained, exercise library link.
+- Muscle groups: chest, shoulders, triceps, biceps, lats, upper back (rows), traps (shrugs/kelso), quads,
+  hamstrings (curls, RDLs, deadlifts), glutes, calves, core, full body, other. Guessed from names by ordered regex
+  rules in `src/lib/exerciseCatalog.ts`. Legacy arms/back/legs are migrated by DB v3 and on backup restore
+  (`migrateMuscleGroup`).
+- Progress (`progressRates` in `src/gym/stats.ts`): weight_reps lifts with ≥ 4 sessions over ≥ 21 days in the
+  period; least-squares slope of per-session best e1RM → % per month, shrunk by n/(n+4). Muscle rate = session-
+  weighted mean of its lifts. Fastest / slowest up to 3 each (never overlapping), plus the 3 lowest-volume muscles.
+- Mid-workout: exercise menu has Replace (keeps completed sets, clears unchecked values) and Reorder (up/down).
 - **Strong CSV import** (`src/import/strong.ts`): columns Date, Workout Name, Duration, Exercise Name, Set Order,
   Weight, Reps, Distance, Seconds, Notes, Workout Notes, RPE. Set Order is a number, W/D/F, or "Rest Timer" (its
   Seconds = the exercise's rest). Rows with 0 reps and 0 s are unfilled sets and are skipped. Notes contain literal
@@ -118,11 +127,11 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
   The map's Focus filter highlights techniques touching active focus positions.
 
 ### Home dashboard
-Week stats, 12-week consistency heatmap (gym blue / BJJ lime), weekly load (duration × RPE, stacked by sport),
+Week stats, monthly consistency calendar with ‹ › month switching (gym blue / BJJ lime), weekly load (duration × RPE, stacked by sport),
 strength trends, BJJ game status counts + focus link, backup reminder (warn after 7 days).
-- Implementation: `src/dashboard/activity.ts` (pure: `activityGrid`, `weeklyLoad`, `weekStreak`; weeks start on
-  Monday, local time) and `src/dashboard/charts.tsx` (`Heatmap`, `LoadChart`, tap-to-inspect, legend on every
-  two-series chart). Gym workouts have no RPE, so their load uses `GYM_ASSUMED_RPE` = 7 (stated under the chart).
+- Implementation: `src/dashboard/activity.ts` (pure: `monthGrid`, `firstActiveMonth`, `weeklyLoad`, `weekStreak`;
+  weeks start on Monday, local time) and `src/dashboard/charts.tsx` (`MonthCalendar` — browsable from the first
+  month with training to now, `LoadChart`; tap-to-inspect, legend on every two-series chart). Gym workouts have no RPE, so their load uses `GYM_ASSUMED_RPE` = 7 (stated under the chart).
   Days with both sports are split diagonally. Strength shows lifts pinned from an exercise page
   (`meta.pinnedLifts`, max 4), else the most-trained loaded lifts of the last 12 weeks.
 - Charts are hand-built SVG/HTML (no Recharts/React Flow) to keep the bundle small and the look exact.

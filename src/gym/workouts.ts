@@ -119,6 +119,42 @@ export async function removeExercise(workoutId: ID, exerciseOrder: number): Prom
   })
 }
 
+/** Moves an exercise block one slot up (-1) or down (+1) by swapping it with its neighbour. */
+export async function moveExercise(workoutId: ID, exerciseOrder: number, direction: -1 | 1): Promise<void> {
+  await db.transaction('rw', db.sets, async () => {
+    const all = await db.sets.where('workoutId').equals(workoutId).toArray()
+    const orders = [...new Set(all.map((s) => s.exerciseOrder))].sort((a, b) => a - b)
+    const i = orders.indexOf(exerciseOrder)
+    const j = i + direction
+    if (i < 0 || j < 0 || j >= orders.length) return
+    const other = orders[j]
+    await Promise.all(
+      all.flatMap((s) =>
+        s.exerciseOrder === exerciseOrder
+          ? [db.sets.update(s.id, { exerciseOrder: other })]
+          : s.exerciseOrder === other
+            ? [db.sets.update(s.id, { exerciseOrder })]
+            : [],
+      ),
+    )
+  })
+}
+
+/**
+ * Swaps the exercise of a block for another one, keeping the set structure. Values typed into unchecked sets
+ * belonged to the old exercise, so they're cleared; completed sets move to the new exercise as logged.
+ */
+export async function replaceExercise(workoutId: ID, exerciseOrder: number, exerciseId: ID): Promise<void> {
+  await db.transaction('rw', [db.sets, db.meta], async () => {
+    const block = await db.sets.where('workoutId').equals(workoutId).filter((s) => s.exerciseOrder === exerciseOrder).toArray()
+    await Promise.all(
+      block.map((s) =>
+        db.sets.update(s.id, s.done ? { exerciseId } : { exerciseId, weight: undefined, reps: undefined, seconds: undefined }),
+      ),
+    )
+  })
+}
+
 export async function updateSet(setId: ID, patch: Partial<Pick<WorkoutSet, 'weight' | 'reps' | 'seconds' | 'kind'>>) {
   await db.sets.update(setId, patch)
 }

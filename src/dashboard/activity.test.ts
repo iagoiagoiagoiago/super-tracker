@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BjjSession, Workout } from '../db/schema'
 import { emptyDraft } from '../bjj/sessions'
-import { activityGrid, GYM_ASSUMED_RPE, weekStart, weekStreak, weeklyLoad } from './activity'
+import { GYM_ASSUMED_RPE, monthGrid, weekStart, weekStreak, weeklyLoad } from './activity'
 
 // Thursday 15 Oct 2026, 18:00 local (Monday is the 12th)
 const NOW = new Date(2026, 9, 15, 18).getTime()
@@ -14,14 +14,17 @@ describe('dashboard activity', () => {
     expect(new Date(weekStart(NOW)).getDate()).toBe(12)
   })
 
-  it('builds a 12-week grid ending this week, marking future days', () => {
-    const grid = activityGrid([workout(at(2026, 10, 12))], [bjj(at(2026, 10, 13))], NOW)
-    expect(grid).toHaveLength(12)
-    const thisWeek = grid[11]
-    expect(thisWeek[0].gym).toEqual(['ANT'])
-    expect(thisWeek[1].bjj).toHaveLength(1)
-    expect(thisWeek[3].future).toBe(false)
-    expect(thisWeek[4].future).toBe(true)
+  it('lays out a month Monday-first with padding and counts', () => {
+    // October 2026 starts on a Thursday and has 31 days.
+    const m = monthGrid(2026, 9, [workout(at(2026, 10, 12)), workout(at(2026, 9, 30))], [bjj(at(2026, 10, 12, 19)), bjj(at(2026, 10, 14))], NOW)
+    expect(m.weeks[0].slice(0, 3)).toEqual([null, null, null])
+    expect(new Date(m.weeks[0][3]!.date).getDate()).toBe(1)
+    expect(m.weeks.every((w) => w.length === 7)).toBe(true)
+    expect(m.weeks.flat().filter(Boolean)).toHaveLength(31)
+    expect(m).toMatchObject({ gymSessions: 1, bjjSessions: 2, activeDays: 2 })
+    const oct12 = m.weeks.flat().find((c) => c && new Date(c.date).getDate() === 12)!
+    expect(oct12.gym).toEqual(['ANT'])
+    expect(oct12.bjj).toHaveLength(1)
   })
 
   it('sums load per week and sport', () => {

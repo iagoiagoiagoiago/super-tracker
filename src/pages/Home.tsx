@@ -7,8 +7,8 @@ import { BackupCard } from '../components/BackupCard'
 import { Sparkline } from '../components/charts'
 import { ChevronRightIcon, GearIcon } from '../components/icons'
 import { Card, Page, SectionTitle } from '../components/ui'
-import { activityGrid, dayStart, GYM_ASSUMED_RPE, weekStreak, weeklyLoad } from '../dashboard/activity'
-import { Heatmap, LoadChart, Legend } from '../dashboard/charts'
+import { GYM_ASSUMED_RPE, weekStreak, weeklyLoad } from '../dashboard/activity'
+import { LoadChart, Legend, MonthCalendar } from '../dashboard/charts'
 import { db } from '../db/db'
 import { gymStats, liftTrend } from '../gym/stats'
 import { META_PINNED_LIFTS } from '../db/schema'
@@ -37,7 +37,6 @@ export function Home() {
     const thisWeek = load[load.length - 1]
     return {
       now,
-      grid: activityGrid(gym.workouts, sessions, now, 12),
       load,
       thisWeek,
       streak: weekStreak(gym.workouts, sessions, now),
@@ -76,7 +75,7 @@ export function Home() {
         <>
           <Card>
             <SectionTitle aside={<Legend />}>Consistency</SectionTitle>
-            <Heatmap grid={view.grid} today={dayStart(view.now)} />
+            <MonthCalendar workouts={gym!.workouts} sessions={bjj!.sessions} now={view.now} />
           </Card>
 
           <Card>

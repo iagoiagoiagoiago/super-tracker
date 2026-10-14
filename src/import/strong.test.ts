@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SuperTrackerDB } from '../db/db'
 import { e1rm } from '../lib/gym'
-import { guessKind, guessMuscleGroup } from '../lib/exerciseCatalog'
+import { guessKind, guessMuscleGroup, migrateMuscleGroup } from '../lib/exerciseCatalog'
 import { parseCsv } from './csv'
 import { commitImport, parseStrongCsv, parseStrongDuration, planImport } from './strong'
 
@@ -76,6 +76,17 @@ describe('strong import', () => {
   })
 })
 
+describe('muscle migration', () => {
+  it('splits legacy groups by name, with a fallback, and leaves specific groups alone', () => {
+    expect(migrateMuscleGroup('arms', 'Hammer Curl (Cable)')).toBe('biceps')
+    expect(migrateMuscleGroup('arms', 'katana triceps')).toBe('triceps')
+    expect(migrateMuscleGroup('back', 'Pull Up')).toBe('lats')
+    expect(migrateMuscleGroup('legs', 'Lying Leg Curl (Machine)')).toBe('hamstrings')
+    expect(migrateMuscleGroup('legs', 'mystery machine')).toBe('quads')
+    expect(migrateMuscleGroup('chest', 'Lat Pulldown')).toBe('chest')
+  })
+})
+
 describe('gym math', () => {
   it('matches Strong e1RM numbers (Brzycki)', () => {
     expect(Math.round(e1rm(90, 6)!)).toBe(105)
@@ -88,10 +99,18 @@ describe('gym math', () => {
 
   it('guesses muscle groups and kinds', () => {
     expect(guessMuscleGroup('Bench Press (Barbell)')).toBe('chest')
-    expect(guessMuscleGroup('pin leg extention')).toBe('legs')
+    expect(guessMuscleGroup('pin leg extention')).toBe('quads')
+    expect(guessMuscleGroup('Seated Leg Curl (Machine)')).toBe('hamstrings')
+    expect(guessMuscleGroup('Romanian Deadlift (Barbell)')).toBe('hamstrings')
+    expect(guessMuscleGroup('Calf Press on Seated Leg Press')).toBe('calves')
+    expect(guessMuscleGroup('Hip Abductor (Machine)')).toBe('glutes')
     expect(guessMuscleGroup('Reverse Fly (Cable)')).toBe('shoulders')
-    expect(guessMuscleGroup('carter extension')).toBe('arms')
-    expect(guessMuscleGroup('T Bar Row')).toBe('back')
+    expect(guessMuscleGroup('carter extension')).toBe('triceps')
+    expect(guessMuscleGroup('Preacher Curl (Machine)')).toBe('biceps')
+    expect(guessMuscleGroup('T Bar Row')).toBe('upper_back')
+    expect(guessMuscleGroup('Lat Pulldown (Cable)')).toBe('lats')
+    expect(guessMuscleGroup('machine kelso shrug')).toBe('traps')
+    expect(guessMuscleGroup('Chest Dip')).toBe('chest')
     expect(guessKind('Pull Up')).toBe('bodyweight_plus')
     expect(guessKind('Bench Press (Barbell)')).toBe('weight_reps')
   })

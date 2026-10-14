@@ -1,5 +1,7 @@
-import { useState } from 'react'
-import type { DayCell, WeekLoad } from './activity'
+import { useMemo, useState } from 'react'
+import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons'
+import type { BjjSession, Workout } from '../db/schema'
+import { dayStart, firstActiveMonth, monthGrid, type DayCell, type WeekLoad } from './activity'
 
 const GYM = 'var(--color-gym)'
 const BJJ = 'var(--color-bjj)'
@@ -24,56 +26,93 @@ export function Legend() {
   )
 }
 
-/** 12-week × 7-day consistency grid. Days with both sports are split diagonally. Tap a day for details. */
-export function Heatmap({ grid, today }: { grid: DayCell[][]; today: number }) {
-  const [picked, setPicked] = useState<DayCell | null>(null)
-  const active = picked ?? grid.flat().find((c) => c.date === today) ?? null
+/**
+ * One month as a Monday-first calendar. Gym days blue, BJJ lime, both split diagonally. ‹ › switch months,
+ * from the first month with training up to the current month. Tap a day for what you did.
+ */
+export function MonthCalendar({
+  workouts,
+  sessions,
+  now,
+}: {
+  workouts: Workout[]
+  sessions: BjjSession[]
+  now: number
+}) {
+  const today = new Date(now)
+  const [ym, setYm] = useState({ year: today.getFullYear(), month: today.getMonth() })
+  const [picked, setPicked] = useState<number | null>(null)
+  const view = useMemo(() => monthGrid(ym.year, ym.month, workouts, sessions, now), [ym, workouts, sessions, now])
+  const first = useMemo(() => firstActiveMonth(workouts, sessions, now), [workouts, sessions, now])
+
+  const idx = (y: number, m: number) => y * 12 + m
+  const canPrev = idx(ym.year, ym.month) > idx(first.year, first.month)
+  const canNext = idx(ym.year, ym.month) < idx(today.getFullYear(), today.getMonth())
+  const shift = (d: number) => {
+    const n = idx(ym.year, ym.month) + d
+    setYm({ year: Math.floor(n / 12), month: n % 12 })
+    setPicked(null)
+  }
+
+  const todayStart = dayStart(now)
+  const cells = view.weeks.flat()
+  const active = cells.find((c) => c && c.date === picked) ?? cells.find((c) => c && c.date === todayStart) ?? null
 
   const fill = (c: DayCell) => {
-    if (c.future) return 'transparent'
     if (c.gym.length && c.bjj.length) return `linear-gradient(135deg, ${GYM} 0 50%, ${BJJ} 50% 100%)`
     if (c.gym.length) return GYM
     if (c.bjj.length) return BJJ
-    return EMPTY
+    return c.future ? 'transparent' : EMPTY
   }
-
-  // Month label over the first column whose Monday starts a new month.
-  const months = grid.map((col, i) => {
-    const m = new Date(col[0].date).getMonth()
-    const prev = i ? new Date(grid[i - 1][0].date).getMonth() : -1
-    return m !== prev ? new Date(col[0].date).toLocaleDateString('en-GB', { month: 'short' }) : ''
-  })
-
   const describe = (c: DayCell) => {
     const parts = [...c.gym, ...(c.bjj.length ? [c.bjj.length > 1 ? `BJJ ×${c.bjj.length}` : 'BJJ'] : [])]
     return parts.length ? parts.join(' · ') : c.future ? 'Upcoming' : 'Rest day'
   }
+  const title = new Date(ym.year, ym.month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+  const navBtn = 'flex h-9 w-9 items-center justify-center rounded-lg bg-raised text-muted disabled:opacity-25'
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-[14px_minmax(0,1fr)] gap-x-1.5">
-        <span />
-        <div className="grid grid-cols-12 gap-1 text-[10px] text-dim">
-          {months.map((m, i) => (
-            <span key={i} className="overflow-visible whitespace-nowrap">{m}</span>
-          ))}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <button onClick={() => shift(-1)} disabled={!canPrev} aria-label="Previous month" className={navBtn}>
+          <ChevronLeftIcon size={18} />
+        </button>
+        <div className="text-center">
+          <div className="text-[15px] font-bold">{title}</div>
+          <div className="text-[11px] text-faint">
+            {view.activeDays} days · {view.gymSessions} gym · {view.bjjSessions} BJJ
+          </div>
         </div>
-        <div className="grid grid-rows-7 gap-1 text-[9px] leading-none text-dim">
-          {['M', '', 'W', '', 'F', '', ''].map((d, i) => (
-            <span key={i} className="flex items-center">{d}</span>
-          ))}
-        </div>
-        <div className="grid grid-flow-col grid-cols-12 grid-rows-7 gap-1" role="grid" aria-label="Training days, last 12 weeks">
-          {grid.flat().map((c) => (
+        <button onClick={() => shift(1)} disabled={!canNext} aria-label="Next month" className={navBtn}>
+          <ChevronRightIcon size={18} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold text-dim">
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+          <span key={i}>{d}</span>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1.5" role="grid" aria-label={`Training days in ${title}`}>
+        {cells.map((c, i) =>
+          c ? (
             <button
               key={c.date}
-              onClick={() => setPicked(c)}
+              onClick={() => setPicked(c.date)}
               aria-label={`${fmtDay(c.date)}: ${describe(c)}`}
-              className={`aspect-square rounded-[4px] ${c.future ? 'border border-[#15181b]' : ''} ${active?.date === c.date ? 'ring-2 ring-text ring-offset-1 ring-offset-surface' : ''}`}
-              style={{ background: fill(c) }}
-            />
-          ))}
-        </div>
+              className={`relative flex aspect-square items-center justify-center rounded-[8px] text-[12px] font-semibold ${
+                c.future ? 'border border-[#15181b] text-dim' : ''
+              } ${active?.date === c.date ? 'ring-2 ring-text ring-offset-2 ring-offset-surface' : ''}`}
+              style={{ background: fill(c), color: c.gym.length || c.bjj.length ? '#0a0b0c' : undefined }}
+            >
+              <span className={c.gym.length || c.bjj.length ? '' : c.date === todayStart ? 'text-text' : 'text-dim'}>
+                {new Date(c.date).getDate()}
+              </span>
+            </button>
+          ) : (
+            <span key={`pad-${i}`} />
+          ),
+        )}
       </div>
       {active && (
         <p className="text-xs text-muted" aria-live="polite">

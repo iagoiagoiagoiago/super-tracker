@@ -12,7 +12,9 @@ import {
   cancelWorkout,
   finishWorkout,
   previousSets,
+  moveExercise,
   removeExercise,
+  replaceExercise,
   removeSet,
   setSlotKeys,
   skipRest,
@@ -61,6 +63,8 @@ export function ActiveWorkout() {
   const [picker, setPicker] = useState(false)
   const [menu, setMenu] = useState<{ order: number; exercise: Exercise } | null>(null)
   const [setSheet, setSetSheet] = useState<WorkoutSet | null>(null)
+  const [replacing, setReplacing] = useState<number | null>(null)
+  const [reordering, setReordering] = useState(false)
 
   if (data && !data.workout) return <Navigate to="/train" replace />
   if (!data?.workout || !workout) return null
@@ -225,6 +229,26 @@ export function ActiveWorkout() {
                 })}
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  setReplacing(menu.order)
+                  setMenu(null)
+                }}
+                className="h-11 rounded-xl bg-raised font-semibold"
+              >
+                Replace exercise
+              </button>
+              <button
+                onClick={() => {
+                  setReordering(true)
+                  setMenu(null)
+                }}
+                className="h-11 rounded-xl bg-raised font-semibold"
+              >
+                Reorder exercises
+              </button>
+            </div>
             <button
               onClick={async () => {
                 await removeExercise(workout.id, menu.order)
@@ -236,6 +260,58 @@ export function ActiveWorkout() {
             </button>
           </div>
         )}
+      </Sheet>
+
+      <ExercisePicker
+        open={replacing !== null}
+        onClose={() => setReplacing(null)}
+        onPick={async (id) => {
+          if (replacing === null) return
+          const block = blocks.get(replacing) ?? []
+          const done = block.filter((s) => s.done).length
+          if (done && !window.confirm(`Move the ${done} completed set${done > 1 ? 's' : ''} to the new exercise?`)) return
+          await replaceExercise(workout.id, replacing, id)
+        }}
+      />
+
+      <Sheet
+        open={reordering}
+        onClose={() => setReordering(false)}
+        title="Reorder"
+        right={
+          <button onClick={() => setReordering(false)} className="text-[17px] font-semibold text-accent">
+            Done
+          </button>
+        }
+      >
+        <ul className="flex flex-col gap-2">
+          {[...blocks.entries()].map(([order, bSets], i, arr) => {
+            const ex = exercises.get(bSets[0].exerciseId)
+            return (
+              <li key={order} className="flex items-center gap-3 rounded-xl bg-raised py-1.5 pr-1.5 pl-4">
+                <span className="w-5 text-sm font-semibold text-faint">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate font-semibold">{ex?.name}</span>
+                <span className="text-xs text-faint">{bSets.length} sets</span>
+                <button
+                  onClick={() => moveExercise(workout.id, order, -1)}
+                  disabled={i === 0}
+                  aria-label={`Move ${ex?.name} up`}
+                  className="h-10 w-10 rounded-lg bg-[#262a30] text-muted disabled:opacity-25"
+                >
+                  ▲
+                </button>
+                <button
+                  onClick={() => moveExercise(workout.id, order, 1)}
+                  disabled={i === arr.length - 1}
+                  aria-label={`Move ${ex?.name} down`}
+                  className="h-10 w-10 rounded-lg bg-[#262a30] text-muted disabled:opacity-25"
+                >
+                  ▼
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       </Sheet>
 
       <Sheet open={!!setSheet} onClose={() => setSetSheet(null)} title="Set type">

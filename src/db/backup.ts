@@ -1,5 +1,6 @@
 import { TABLE_NAMES, type SuperTrackerDB, type TableName } from './db'
 import { META_LAST_BACKUP } from './schema'
+import { migrateMuscleGroup } from '../lib/exerciseCatalog'
 
 export const BACKUP_FORMAT = 'super-tracker-backup'
 export const BACKUP_VERSION = 1
@@ -55,7 +56,11 @@ export async function restoreBackup(db: SuperTrackerDB, backup: Backup): Promise
     for (const name of TABLE_NAMES) {
       const table = db.table(name)
       await table.clear()
-      const rows = backup.tables[name] ?? []
+      let rows = backup.tables[name] ?? []
+      // Backups made before the muscle split still say arms / back / legs.
+      if (name === 'exercises') {
+        rows = (rows as { muscleGroup: string; name: string }[]).map((e) => ({ ...e, muscleGroup: migrateMuscleGroup(e.muscleGroup, e.name) }))
+      }
       if (rows.length) await table.bulkAdd(rows)
     }
   })

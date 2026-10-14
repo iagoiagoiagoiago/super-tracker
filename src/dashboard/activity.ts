@@ -34,24 +34,59 @@ export interface DayCell {
   future: boolean
 }
 
-/** Weeks × 7 grid (Monday first), oldest week first, ending with the current week. */
-export function activityGrid(workouts: Workout[], sessions: BjjSession[], now: number, weeks = 12): DayCell[][] {
-  const first = addDays(weekStart(now), -7 * (weeks - 1))
+export interface MonthView {
+  year: number
+  /** 0–11 */
+  month: number
+  /** Rows of 7 (Monday first); null pads days outside the month. */
+  weeks: (DayCell | null)[][]
+  gymSessions: number
+  bjjSessions: number
+  activeDays: number
+}
+
+/** Calendar for one month, Monday-first, with each day's gym workouts and BJJ sessions. */
+export function monthGrid(year: number, month: number, workouts: Workout[], sessions: BjjSession[], now: number): MonthView {
+  const first = new Date(year, month, 1).getTime()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const lead = (new Date(first).getDay() + 6) % 7
+  const cells: (DayCell | null)[] = Array.from({ length: lead }, () => null)
   const byDay = new Map<number, DayCell>()
-  const grid: DayCell[][] = []
-  for (let w = 0; w < weeks; w++) {
-    const col: DayCell[] = []
-    for (let d = 0; d < 7; d++) {
-      const date = addDays(first, w * 7 + d)
-      const cell = { date, gym: [], bjj: [], future: date > now }
-      byDay.set(date, cell)
-      col.push(cell)
-    }
-    grid.push(col)
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month, d).getTime()
+    const cell: DayCell = { date, gym: [], bjj: [], future: date > now }
+    byDay.set(date, cell)
+    cells.push(cell)
   }
-  for (const w of workouts) if (w.endedAt) byDay.get(dayStart(w.startedAt))?.gym.push(w.name)
-  for (const s of sessions) byDay.get(dayStart(s.date))?.bjj.push('BJJ')
-  return grid
+  while (cells.length % 7) cells.push(null)
+
+  let gymSessions = 0
+  let bjjSessions = 0
+  for (const w of workouts) {
+    const c = w.endedAt ? byDay.get(dayStart(w.startedAt)) : undefined
+    if (c) {
+      c.gym.push(w.name)
+      gymSessions++
+    }
+  }
+  for (const s of sessions) {
+    const c = byDay.get(dayStart(s.date))
+    if (c) {
+      c.bjj.push('BJJ')
+      bjjSessions++
+    }
+  }
+  const weeks: (DayCell | null)[][] = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+  const activeDays = [...byDay.values()].filter((c) => c.gym.length || c.bjj.length).length
+  return { year, month, weeks, gymSessions, bjjSessions, activeDays }
+}
+
+/** First month (year, month) that has any training, for limiting how far back the calendar goes. */
+export function firstActiveMonth(workouts: Workout[], sessions: BjjSession[], now: number): { year: number; month: number } {
+  const ts = [...workouts.filter((w) => w.endedAt).map((w) => w.startedAt), ...sessions.map((s) => s.date)]
+  const d = new Date(ts.length ? Math.min(...ts) : now)
+  return { year: d.getFullYear(), month: d.getMonth() }
 }
 
 export interface WeekLoad {

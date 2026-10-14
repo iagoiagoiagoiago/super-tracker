@@ -1,5 +1,6 @@
 import type { Exercise, ID, MuscleGroup, Workout, WorkoutSet } from '../db/schema'
 import { setE1rm } from '../lib/gym'
+import { TRACKED_MUSCLES } from '../lib/exerciseCatalog'
 
 // ---------- Personal records ----------
 
@@ -157,6 +158,9 @@ export interface GymStats {
   muscles: { group: MuscleGroup; setsPerWeek: number }[]
   mostTrained: { exercise: Exercise; sessions: number }[]
   weeks: number
+  /** Working (non-warm-up) sets per week over the period. */
+  setsPerWeek: number
+  progress: { exercises: ExerciseProgress[]; muscles: MuscleProgress[] }
 }
 
 export function gymStats(
@@ -214,8 +218,8 @@ export function gymStats(
     if (lifts.length === 4) break
   }
 
-  // Working sets per muscle group per week
-  const perGroup = new Map<MuscleGroup, number>()
+  // Working sets per muscle group per week. Every tracked muscle is listed, even at zero: a gap is information.
+  const perGroup = new Map<MuscleGroup, number>(TRACKED_MUSCLES.map((g) => [g, 0]))
   for (const s of rSets) {
     const g = exercises.get(s.exerciseId)?.muscleGroup
     if (g) perGroup.set(g, (perGroup.get(g) ?? 0) + 1)
@@ -224,14 +228,100 @@ export function gymStats(
     .map(([group, n]) => ({ group, setsPerWeek: n / weeks }))
     .sort((a, b) => b.setsPerWeek - a.setsPerWeek)
 
+  const progress = progressRates(exercises, wMap, rSets, sessions)
+
   return {
     workouts: inRange.length,
     volume,
+    setsPerWeek: rSets.length / weeks,
     avgDurationMs,
     prs: prs.filter((p) => wMap.has(p.workoutId)).length,
     lifts,
     muscles,
     mostTrained,
     weeks,
+    progress,
   }
+}
+
+// ---------- Progress rates ----------
+
+/** An exercise needs this many sessions, spread over at least this many days, to get a progress rate. */
+export const PROGRESS_MIN_SESSIONS = 4
+export const PROGRESS_MIN_SPAN_DAYS = 21
+/** Rates are shrunk toward 0 by n / (n + this), so a lift backed by few sessions can't top the list on luck. */
+export const PROGRESS_SHRINK = 4
+
+export interface ExerciseProgress {
+  exercise: Exercise
+  /** e1RM change in % per 30 days: least-squares fit over the period's sessions, shrunk by session count. */
+  ratePerMonth: number
+  sessions: number
+  from: number
+  to: number
+}
+
+export interface MuscleProgress {
+  group: MuscleGroup
+  /** Session-weighted mean of its exercises' rates. */
+  ratePerMonth: number
+  exercises: number
+}
+
+/** Least-squares slope of y over x. */
+function slope(points: { x: number; y: number }[]): number {
+  const n = points.length
+  const mx = points.reduce((a, p) => a + p.x, 0) / n
+  const my = points.reduce((a, p) => a + p.y, 0) / n
+  let num = 0
+  let den = 0
+  for (const p of points) {
+    num += (p.x - mx) * (p.y - my)
+    den += (p.x - mx) ** 2
+  }
+  return den ? num / den : 0
+}
+
+/**
+ * How fast each loaded lift's estimated 1RM is moving, as % per month. A regression over every session is far
+ * less noisy than first-vs-last (one bad day doesn't flip the result).
+ */
+export function progressRates(
+  exercises: Map<ID, Exercise>,
+  workouts: Map<ID, Workout>,
+  sets: WorkoutSet[],
+  sessions: Map<ID, Set<ID>>,
+): { exercises: ExerciseProgress[]; muscles: MuscleProgress[] } {
+  const out: ExerciseProgress[] = []
+  for (const [id, ws] of sessions) {
+    const exercise = exercises.get(id)
+    if (!exercise || exercise.kind !== 'weight_reps' || ws.size < PROGRESS_MIN_SESSIONS) continue
+    const pts = exerciseSeries(exercise, workouts, sets).flatMap((p) => (p.e1rm ? [{ x: p.t / DAY, y: p.e1rm }] : []))
+    if (pts.length < PROGRESS_MIN_SESSIONS || pts[pts.length - 1].x - pts[0].x < PROGRESS_MIN_SPAN_DAYS) continue
+    const mean = pts.reduce((a, p) => a + p.y, 0) / pts.length
+    out.push({
+      exercise,
+      ratePerMonth: ((slope(pts) * 30) / mean) * 100 * (pts.length / (pts.length + PROGRESS_SHRINK)),
+      sessions: pts.length,
+      from: pts[0].x * DAY,
+      to: pts[pts.length - 1].x * DAY,
+    })
+  }
+  out.sort((a, b) => b.ratePerMonth - a.ratePerMonth)
+
+  const byGroup = new Map<MuscleGroup, { sum: number; weight: number; n: number }>()
+  for (const p of out) {
+    const g = p.exercise.muscleGroup
+    if (g === 'other' || g === 'full_body') continue
+    const cur = byGroup.get(g) ?? { sum: 0, weight: 0, n: 0 }
+    cur.sum += p.ratePerMonth * p.sessions
+    cur.weight += p.sessions
+    cur.n++
+    byGroup.set(g, cur)
+  }
+  const muscles = [...byGroup.entries()]
+    .map(([group, v]) => ({ group, ratePerMonth: v.sum / v.weight, exercises: v.n }))
+    .sort((a, b) => b.ratePerMonth - a.ratePerMonth)
+
+  return { exercises: out, muscles }
 }

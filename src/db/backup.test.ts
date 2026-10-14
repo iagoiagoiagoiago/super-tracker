@@ -54,8 +54,22 @@ describe('backup', () => {
     await restoreBackup(b, parseBackup(text))
 
     expect(await b.exercises.toArray()).toHaveLength(1)
+    expect((await b.exercises.get('e1'))?.muscleGroup).toBe('chest')
     expect((await b.sets.get('s1'))?.weight).toBe(90)
     expect((await b.positions.get('p1'))?.name).toBe('Half guard')
+  })
+
+  it('migrates pre-split muscle groups in old backups', async () => {
+    const old = {
+      format: 'super-tracker-backup',
+      version: 1,
+      exportedAt: 1,
+      tables: { exercises: [{ id: 'x', name: 'Hammer Curl (Cable)', muscleGroup: 'arms', kind: 'weight_reps', restSeconds: 90, archived: false, createdAt: 1 }] },
+    }
+    const b = freshDb()
+    dbs.push(b)
+    await restoreBackup(b, parseBackup(JSON.stringify(old)))
+    expect((await b.exercises.get('x'))?.muscleGroup).toBe('biceps')
   })
 
   it('rejects files that are not backups', () => {

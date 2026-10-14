@@ -24,6 +24,14 @@ describe.skipIf(!realCsv)('real export stats', () => {
     console.log(st.muscles.map((m) => `${m.group} ${m.setsPerWeek.toFixed(1)}`))
     console.log(st.mostTrained.map((m) => `${m.exercise.name} ${m.sessions}`))
     console.log('total PR events', prs.length)
+    for (const r of ['12W', '1Y'] as const) {
+      const g = gymStats(r, workouts, sets, ex, prs, Math.max(...workouts.map((w) => w.startedAt)) + 3600_000)
+      console.log(r, 'sets/wk', g.setsPerWeek.toFixed(1))
+      console.log(' fastest', g.progress.exercises.slice(0, 3).map((p) => `${p.exercise.name} ${p.ratePerMonth.toFixed(1)}%/mo n=${p.sessions}`))
+      console.log(' slowest', g.progress.exercises.slice(-3).map((p) => `${p.exercise.name} ${p.ratePerMonth.toFixed(1)}%/mo n=${p.sessions}`))
+      console.log(' muscles', g.progress.muscles.map((m) => `${m.group} ${m.ratePerMonth.toFixed(1)}`))
+      console.log(' volume', g.muscles.map((m) => `${m.group} ${m.setsPerWeek.toFixed(1)}`))
+    }
     await db.delete()
     expect(prs.length).toBeGreaterThan(0)
   })

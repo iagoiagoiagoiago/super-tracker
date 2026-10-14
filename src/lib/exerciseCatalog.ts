@@ -1,15 +1,33 @@
 import type { ExerciseKind, MuscleGroup } from '../db/schema'
 
-export const MUSCLE_GROUPS: { value: MuscleGroup; label: string }[] = [
-  { value: 'chest', label: 'Chest' },
-  { value: 'back', label: 'Back' },
-  { value: 'shoulders', label: 'Shoulders' },
-  { value: 'arms', label: 'Arms' },
-  { value: 'legs', label: 'Legs' },
-  { value: 'core', label: 'Core' },
-  { value: 'full_body', label: 'Full body' },
-  { value: 'other', label: 'Other' },
+export const MUSCLE_GROUPS: { value: MuscleGroup; label: string; region: string }[] = [
+  { value: 'chest', label: 'Chest', region: 'Push' },
+  { value: 'shoulders', label: 'Shoulders', region: 'Push' },
+  { value: 'triceps', label: 'Triceps', region: 'Push' },
+  { value: 'lats', label: 'Lats', region: 'Pull' },
+  { value: 'upper_back', label: 'Upper back', region: 'Pull' },
+  { value: 'traps', label: 'Traps', region: 'Pull' },
+  { value: 'biceps', label: 'Biceps', region: 'Pull' },
+  { value: 'quads', label: 'Quads', region: 'Legs' },
+  { value: 'hamstrings', label: 'Hamstrings', region: 'Legs' },
+  { value: 'glutes', label: 'Glutes', region: 'Legs' },
+  { value: 'calves', label: 'Calves', region: 'Legs' },
+  { value: 'core', label: 'Core', region: 'Other' },
+  { value: 'full_body', label: 'Full body', region: 'Other' },
+  { value: 'other', label: 'Other', region: 'Other' },
 ]
+
+/** Groups that get a "low volume" warning; full body and other are too vague to judge. */
+export const TRACKED_MUSCLES = MUSCLE_GROUPS.filter((m) => m.region !== 'Other' || m.value === 'core').map((m) => m.value)
+
+/** Pre-split groups from older data (v1/v2 DB, old backups) and their fallback when the name gives no hint. */
+const LEGACY_FALLBACK: Record<string, MuscleGroup> = { arms: 'biceps', back: 'upper_back', legs: 'quads' }
+
+/** Turns a legacy broad group into a specific one, using the exercise name when it can. */
+export function migrateMuscleGroup(group: string, name: string): MuscleGroup {
+  if (!(group in LEGACY_FALLBACK)) return group as MuscleGroup
+  return guessMuscleGroup(name) ?? LEGACY_FALLBACK[group]
+}
 
 export const EXERCISE_KINDS: { value: ExerciseKind; label: string }[] = [
   { value: 'weight_reps', label: 'Weight × reps' },
@@ -22,14 +40,19 @@ export const muscleLabel = (g: MuscleGroup) => MUSCLE_GROUPS.find((m) => m.value
 
 // Order matters: the first rule whose pattern matches wins, so specific patterns come before general ones.
 const RULES: [RegExp, MuscleGroup][] = [
-  [/calf|leg press|leg curl|leg ext|squat|lunge|adductor|abductor|hip thrust|glute|deadlift|\brdl\b|step.?up|v-squat/, 'legs'],
-  [/crunch|\babs?\b|plank|sit.?up|leg raise|core|rollout/, 'core'],
-  [/reverse fly|rear delt|face pull|lateral raise|shoulder press|military|overhead press|viking|standing press|upright row|\bohp\b|press militar|incline shoulder/, 'shoulders'],
-  [/tricep|pushdown|carter|katana|skull|\bjm press\b|close grip|dip \(?tri|triceps dip/, 'arms'],
-  [/curl|bicep/, 'arms'],
+  [/calf|calves/, 'calves'],
+  [/leg curl|hamstring|romanian|\brdl\b|stiff.?leg|good.?morning|nordic|deadlift|back ext/, 'hamstrings'],
+  [/hip thrust|glute|abductor|kickback|pull.?through/, 'glutes'],
+  [/squat|leg press|leg ext|lunge|step.?up|hack|adductor|sissy/, 'quads'],
+  [/crunch|\babs?\b|plank|sit.?up|leg raise|core|rollout|wood.?chop/, 'core'],
+  [/shrug|kelso/, 'traps'],
+  [/reverse fly|rear delt|face pull|lateral raise|shoulder press|military|overhead press|viking|standing press|upright row|\bohp\b|press militar|incline shoulder|arnold/, 'shoulders'],
+  [/tricep|pushdown|carter|katana|skull|\bjm press\b|close grip|kickback|dip \(?tri/, 'triceps'],
+  [/curl|bicep/, 'biceps'],
   [/bench|chest|pec|fly|flye|butterfly|push.?up|\bdip\b/, 'chest'],
-  [/row|pull.?up|chin.?up|pulldown|pullover|shrug|kelso|lat\b|back ext/, 'back'],
-  [/bike|cycling|run|row(ing)? machine|elliptical|burpee|thruster|clean|snatch/, 'full_body'],
+  [/pull.?up|chin.?up|pulldown|pullover|\blat\b|straight.?arm/, 'lats'],
+  [/row/, 'upper_back'],
+  [/bike|cycling|run|elliptical|burpee|thruster|clean|snatch/, 'full_body'],
 ]
 
 /** Best guess of an exercise's main muscle group from its name. Returns undefined when nothing matches. */

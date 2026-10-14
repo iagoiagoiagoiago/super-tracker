@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom'
 import { Sparkline } from '../components/charts'
 import { PRBadges } from '../components/PRBadge'
 import { Card, EmptyState, Page, SectionTitle } from '../components/ui'
-import { gymStats, type RangeKey } from '../gym/stats'
+import { gymStats, type GymStats, type RangeKey } from '../gym/stats'
 import { useGymData } from '../gym/useGymData'
-import { muscleLabel } from '../lib/exerciseCatalog'
-import { describeSet, fmtDuration, fmtTonnage } from '../lib/gym'
+import { MUSCLE_GROUPS, muscleLabel, TRACKED_MUSCLES } from '../lib/exerciseCatalog'
+import { describeSet, fmtDuration } from '../lib/gym'
 import { relativeDays } from '../lib/time'
 
 const RANGES: RangeKey[] = ['4W', '12W', '1Y', 'ALL']
@@ -39,7 +39,6 @@ export function Gym() {
     )
   }
 
-  const maxMuscle = Math.max(1, ...(stats?.muscles.map((m) => m.setsPerWeek) ?? []))
   const lifts = [...(stats?.lifts ?? [])].sort((a, b) => b.best - a.best)
 
   return (
@@ -59,7 +58,7 @@ export function Gym() {
 
       <div className="grid grid-cols-2 gap-2">
         <Tile value={stats?.workouts ?? '–'} label="workouts" />
-        <Tile value={stats ? fmtTonnage(stats.volume) : '–'} label="total volume" />
+        <Tile value={stats ? stats.setsPerWeek.toFixed(stats.setsPerWeek < 10 ? 1 : 0) : '–'} label="avg sets / week" />
         <Tile value={stats?.avgDurationMs ? fmtDuration(stats.avgDurationMs) : '–'} label="avg duration" />
         <Tile value={stats?.prs ?? '–'} label="new PRs" />
       </div>
@@ -89,20 +88,9 @@ export function Gym() {
         </ul>
       </Card>
 
-      <Card>
-        <SectionTitle aside="working sets per week">Sets per muscle</SectionTitle>
-        <ul className="flex flex-col gap-2.5">
-          {stats?.muscles.map((m) => (
-            <li key={m.group} className="grid grid-cols-[78px_minmax(0,1fr)_32px] items-center gap-2.5 text-[13px]">
-              <span className="text-[#c9cdd2]">{muscleLabel(m.group)}</span>
-              <div className="h-2 overflow-hidden rounded bg-raised">
-                <div className="h-full rounded bg-accent" style={{ width: `${(m.setsPerWeek / maxMuscle) * 100}%` }} />
-              </div>
-              <span className="text-right font-semibold tabular-nums">{m.setsPerWeek.toFixed(m.setsPerWeek < 10 ? 1 : 0)}</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      {stats && <MuscleVolume muscles={stats.muscles} />}
+
+      {stats && <ProgressCard progress={stats.progress} muscles={stats.muscles} range={range} />}
 
       <Card>
         <SectionTitle>Recent PRs</SectionTitle>
@@ -152,6 +140,154 @@ function Tile({ value, label }: { value: ReactNode; label: string }) {
     <div className="rounded-2xl bg-surface p-3.5">
       <div className="text-[24px] font-bold">{value}</div>
       <div className="mt-0.5 text-xs text-faint">{label}</div>
+    </div>
+  )
+}
+
+function MuscleVolume({ muscles }: { muscles: GymStats['muscles'] }) {
+  const max = Math.max(1, ...muscles.map((m) => m.setsPerWeek))
+  const by = new Map(muscles.map((m) => [m.group, m.setsPerWeek]))
+  const regions = ['Push', 'Pull', 'Legs', 'Other']
+  return (
+    <Card>
+      <SectionTitle aside="working sets per week">Sets per muscle</SectionTitle>
+      <div className="flex flex-col gap-4">
+        {regions.map((r) => {
+          const groups = MUSCLE_GROUPS.filter((g) => g.region === r && (TRACKED_MUSCLES.includes(g.value) || (by.get(g.value) ?? 0) > 0))
+          if (!groups.length) return null
+          return (
+            <div key={r}>
+              <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-dim">{r}</h3>
+              <ul className="flex flex-col gap-2">
+                {groups.map((g) => {
+                  const v = by.get(g.value) ?? 0
+                  return (
+                    <li key={g.value} className="grid grid-cols-[86px_minmax(0,1fr)_32px] items-center gap-2.5 text-[13px]">
+                      <span className={v ? 'text-[#c9cdd2]' : 'text-dim'}>{g.label}</span>
+                      <div className="h-2 overflow-hidden rounded bg-raised">
+                        <div className="h-full rounded bg-accent" style={{ width: `${(v / max) * 100}%` }} />
+                      </div>
+                      <span className={`text-right font-semibold tabular-nums ${v ? '' : 'text-dim'}`}>{v ? v.toFixed(v < 10 ? 1 : 0) : '0'}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )
+        })}
+      </div>
+    </Card>
+  )
+}
+
+const fmtRate = (r: number) => `${r > 0 ? '+' : r < 0 ? '−' : '±'}${Math.abs(r).toFixed(1)}%`
+const rateColor = (r: number) => (r > 0.5 ? 'text-[#4ade80]' : r < -0.5 ? 'text-danger' : 'text-muted')
+
+function ProgressCard({ progress, muscles, range }: { progress: GymStats['progress']; muscles: GymStats['muscles']; range: RangeKey }) {
+  const [mode, setMode] = useState<'exercises' | 'muscles'>('exercises')
+  const ex = progress.exercises
+  const mu = progress.muscles
+  // Up to 3 each; with fewer than 6 items, split them so no lift appears in both lists.
+  const pick = <T,>(list: T[]) => {
+    const n = Math.min(3, Math.ceil(list.length / 2))
+    return { top: list.slice(0, n), bottom: list.slice(n).slice(-3).reverse() }
+  }
+  const exSplit = pick(ex)
+  const muSplit = pick(mu)
+  const lowest = muscles
+    .filter((m) => TRACKED_MUSCLES.includes(m.group) && m.group !== 'core')
+    .sort((a, b) => a.setsPerWeek - b.setsPerWeek)
+    .slice(0, 3)
+  const empty = mode === 'exercises' ? ex.length === 0 : mu.length === 0
+
+  return (
+    <Card>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-[15px] font-bold">Progress</h2>
+        <div role="group" aria-label="Progress by" className="flex gap-1 rounded-lg bg-[#121417] p-0.5">
+          {(['exercises', 'muscles'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+              className={`h-7 rounded-md px-2.5 text-xs font-semibold ${mode === m ? 'bg-[#262a30] text-text' : 'text-muted'}`}
+            >
+              {m === 'exercises' ? 'Exercises' : 'Muscles'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {empty ? (
+        <p className="text-xs text-faint">
+          {range === '4W' ? 'Four weeks is short for trends. Try 12W or longer, or keep logging.' : 'Train a lift at least 4 times over 3+ weeks to see its trend.'}
+        </p>
+      ) : mode === 'exercises' ? (
+        <>
+          <ProgressList title="Fastest" items={exSplit.top.map((p) => ({ key: p.exercise.id, name: p.exercise.name, sub: `${p.sessions} sessions`, rate: p.ratePerMonth, to: `/gym/exercises/${p.exercise.id}` }))} />
+          {exSplit.bottom.length > 0 && (
+            <ProgressList title="Slowest" items={exSplit.bottom.map((p) => ({ key: p.exercise.id, name: p.exercise.name, sub: `${p.sessions} sessions`, rate: p.ratePerMonth, to: `/gym/exercises/${p.exercise.id}` }))} />
+          )}
+        </>
+      ) : (
+        <>
+          <ProgressList title="Fastest" items={muSplit.top.map((m) => ({ key: m.group, name: muscleLabel(m.group), sub: `${m.exercises} lift${m.exercises > 1 ? 's' : ''}`, rate: m.ratePerMonth }))} />
+          {muSplit.bottom.length > 0 && (
+            <ProgressList title="Slowest" items={muSplit.bottom.map((m) => ({ key: m.group, name: muscleLabel(m.group), sub: `${m.exercises} lift${m.exercises > 1 ? 's' : ''}`, rate: m.ratePerMonth }))} />
+          )}
+        </>
+      )}
+
+      {mode === 'muscles' && lowest.length > 0 && (
+        <div className="mt-4 border-t border-line pt-3">
+          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-dim">Lowest volume</h3>
+          <ul className="flex flex-col gap-1.5">
+            {lowest.map((m) => (
+              <li key={m.group} className="flex items-baseline justify-between text-sm">
+                <span>{muscleLabel(m.group)}</span>
+                <span className={m.setsPerWeek < 1 ? 'text-danger' : 'text-muted'}>{m.setsPerWeek.toFixed(1)} sets / week</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <p className="mt-3 text-[10px] leading-relaxed text-dim">
+        Estimated 1RM change per month, fitted over every session in the period. Lifts with few sessions are toned down.
+      </p>
+    </Card>
+  )
+}
+
+function ProgressList({ title, items }: { title: string; items: { key: string; name: string; sub: string; rate: number; to?: string }[] }) {
+  return (
+    <div className="mb-3 last:mb-0">
+      <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-dim">{title}</h3>
+      <ul className="flex flex-col gap-2">
+        {items.map((it) => {
+          const body = (
+            <>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold">{it.name}</div>
+                <div className="text-xs text-faint">{it.sub}</div>
+              </div>
+              <span className={`shrink-0 text-[15px] font-bold tabular-nums ${rateColor(it.rate)}`}>
+                {fmtRate(it.rate)}
+                <span className="text-[11px] font-medium text-faint"> /mo</span>
+              </span>
+            </>
+          )
+          return (
+            <li key={it.key}>
+              {it.to ? (
+                <Link to={it.to} className="flex items-center justify-between gap-3">{body}</Link>
+              ) : (
+                <div className="flex items-center justify-between gap-3">{body}</div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

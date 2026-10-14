@@ -11,7 +11,8 @@ for iPhone. Everything is stored on the device; there are no accounts and no ser
   An in-progress workout survives the app being closed.
 - History with per-set estimated 1RM (Brzycki, matching Strong's numbers) and automatic PR detection
   (weight, 1RM, volume, reps).
-- Gym stats: best lifts with trends, sets per muscle per week, recent PRs, most-trained exercises, and an
+- Gym stats: best lifts with trends, sets per muscle per week across 12 muscle groups, fastest and slowest
+  progressing lifts and muscles, recent PRs, most-trained exercises, and an
   interactive progress chart per exercise.
 - **Strong CSV import** with set types, rest timers and notes, duplicate-safe re-import, automatic
   muscle-group mapping with a review step, and templates generated from recent routines.
@@ -26,7 +27,7 @@ for iPhone. Everything is stored on the device; there are no accounts and no ser
   catching you, and rule-based suggestions (leaks, dead ends, stale techniques, one-tap promotions).
 
 **Home dashboard**
-- 12-week consistency heatmap, weekly training load (minutes × RPE) across both sports, week streak,
+- Monthly consistency calendar, weekly training load (minutes × RPE) across both sports, week streak,
   pinned strength trends, BJJ game overview and a backup reminder.
 
 **Data safety**

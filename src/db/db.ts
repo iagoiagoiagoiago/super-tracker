@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
+import { migrateMuscleGroup } from '../lib/exerciseCatalog'
 import type {
   BjjSession,
   Exercise,
@@ -40,6 +41,17 @@ export class SuperTrackerDB extends Dexie {
     this.version(2).stores({
       workouts: 'id, startedAt, endedAt, externalId',
     })
+    // v3: arms / back / legs split into specific muscles (biceps, lats, quads…), re-guessed from exercise names.
+    this.version(3)
+      .stores({})
+      .upgrade((tx) =>
+        tx
+          .table('exercises')
+          .toCollection()
+          .modify((e: { muscleGroup: string; name: string }) => {
+            e.muscleGroup = migrateMuscleGroup(e.muscleGroup, e.name)
+          }),
+      )
   }
 }
 

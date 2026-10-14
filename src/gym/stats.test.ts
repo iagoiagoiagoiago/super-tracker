@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Exercise, Workout, WorkoutSet } from '../db/schema'
-import { computePRs, exerciseSeries, gymStats } from './stats'
+import { computePRs, exerciseSeries, gymStats, progressRates } from './stats'
 
 const bench: Exercise = { id: 'b', name: 'Bench', muscleGroup: 'chest', kind: 'weight_reps', restSeconds: 180, archived: false, createdAt: 0 }
 const dip: Exercise = { id: 'd', name: 'Dip', muscleGroup: 'chest', kind: 'bodyweight_plus', restSeconds: 180, archived: false, createdAt: 0 }
@@ -64,5 +64,25 @@ describe('gymStats', () => {
     expect(pts).toHaveLength(2)
     expect(pts[0].weight).toBe(80)
     expect(pts[0].volume).toBe(80 * 6 + 70 * 10)
+  })
+})
+
+describe('progressRates', () => {
+  it('ranks lifts by fitted e1RM change per month and needs enough sessions', () => {
+    const row: Exercise = { ...bench, id: 'r', name: 'Row', muscleGroup: 'upper_back' }
+    const exs = new Map([bench, row].map((e) => [e.id, e]))
+    const workouts = [0, 7, 14, 21, 28].map((d) => w(`p${d}`, d))
+    const sets = [
+      ...workouts.map((x, i) => s(x.id, 'b', 100 + i * 2.5, 5)), // bench climbing
+      ...workouts.map((x, i) => ({ ...s(x.id, 'r', 80 - i, 8), exerciseOrder: 1 })), // row slipping
+      s('p0', 'd', 20, 6), // too few sessions for a dip trend, and not loaded anyway
+    ]
+    const sessions = new Map<string, Set<string>>()
+    for (const x of sets) sessions.set(x.exerciseId, (sessions.get(x.exerciseId) ?? new Set()).add(x.workoutId))
+    const p = progressRates(exs, new Map(workouts.map((x) => [x.id, x])), sets, sessions)
+    expect(p.exercises.map((e) => e.exercise.id)).toEqual(['b', 'r'])
+    expect(p.exercises[0].ratePerMonth).toBeGreaterThan(0)
+    expect(p.exercises[1].ratePerMonth).toBeLessThan(0)
+    expect(p.muscles.map((m) => m.group)).toEqual(['chest', 'upper_back'])
   })
 })
