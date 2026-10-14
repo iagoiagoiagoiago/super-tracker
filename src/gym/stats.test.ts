@@ -57,6 +57,27 @@ describe('gymStats', () => {
     expect(st.prs).toBe(2)
   })
 
+  it('counts half sets for helper muscles of compound lifts', () => {
+    const workouts = [w('w1', 1)]
+    const sets = [s('w1', 'b', 80, 6), s('w1', 'b', 80, 6), s('w1', 'd', 10, 8), s('w1', 'd', 10, 8, 'warmup')]
+    const fly: Exercise = { ...bench, id: 'f', name: 'Chest Fly' }
+    const st = gymStats('4W', workouts, [...sets, s('w1', 'f', 20, 12)], new Map([...exercises, ['f', fly]]), [], 2 * DAY)
+    const per = new Map(st.muscles.map((m) => [m.group, m.setsPerWeek * st.weeks]))
+    // 2 bench + 1 dip + 1 fly working sets; the fly is isolation; the warm-up never counts.
+    expect(per.get('chest')).toBe(4)
+    expect(per.get('triceps')).toBe(1.5)
+    expect(per.get('shoulders')).toBe(1.5)
+    expect(st.setsPerWeek * st.weeks).toBe(4)
+  })
+
+  it('uses the per-exercise helper choice over the guess', () => {
+    const custom = new Map([['b', { ...bench, secondaryMuscles: ['triceps' as const] }]])
+    const st = gymStats('4W', [w('w1', 1)], [s('w1', 'b', 80, 6)], custom, [], 2 * DAY)
+    const per = new Map(st.muscles.map((m) => [m.group, m.setsPerWeek * st.weeks]))
+    expect(per.get('triceps')).toBe(0.5)
+    expect(per.get('shoulders')).toBe(0)
+  })
+
   it('builds per-session series', () => {
     const workouts = [w('w1', 1), w('w2', 2)]
     const sets = [s('w1', 'b', 80, 6), s('w1', 'b', 70, 10), s('w2', 'b', 90, 4)]

@@ -82,6 +82,12 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
   hamstrings (curls, RDLs, deadlifts), glutes, calves, core, full body, other. Guessed from names by ordered regex
   rules in `src/lib/exerciseCatalog.ts`. Legacy arms/back/legs are migrated by DB v3 and on backup restore
   (`migrateMuscleGroup`).
+- **Fractional sets**: each working set counts 1 for the main muscle and `HELPER_SET` = 0.5 for each helper muscle
+  (dips: chest 1, shoulders 0.5, triceps 0.5). Helpers come from `guessHelpers(name, main)` (ordered compound rules;
+  isolation lifts get none) unless the exercise has `secondaryMuscles` (optional, not indexed; an explicit array —
+  even empty — is the user's choice, edited as "Also works" chips on the exercise page, Reset clears it).
+  `helperMuscles(ex)` resolves it. Used by sets per muscle and the lowest-volume list; muscle progress rates stay
+  on the main muscle only.
 - Progress (`progressRates` in `src/gym/stats.ts`): weight_reps lifts with ≥ 4 sessions over ≥ 21 days in the
   period; least-squares slope of per-session best e1RM → % per month, shrunk by n/(n+4). Muscle rate = session-
   weighted mean of its lifts. Fastest / slowest up to 3 each (never overlapping), plus the 3 lowest-volume muscles.

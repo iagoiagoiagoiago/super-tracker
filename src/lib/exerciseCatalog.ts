@@ -1,4 +1,4 @@
-import type { ExerciseKind, MuscleGroup } from '../db/schema'
+import type { Exercise, ExerciseKind, MuscleGroup } from '../db/schema'
 
 export const MUSCLE_GROUPS: { value: MuscleGroup; label: string; region: string }[] = [
   { value: 'chest', label: 'Chest', region: 'Push' },
@@ -60,6 +60,40 @@ export function guessMuscleGroup(name: string): MuscleGroup | undefined {
   const n = name.toLowerCase()
   for (const [re, group] of RULES) if (re.test(n)) return group
   return undefined
+}
+
+/** Each working set counts 1 for the main muscle and this much for every helper muscle. */
+export const HELPER_SET = 0.5
+
+const NOT_PRESS = /fly|flye|butterfly|pec ?dec|crossover/
+
+// Compound lifts: [name pattern, required main muscle, helpers]. Isolation work matches nothing and has no helpers.
+const HELPER_RULES: [RegExp, MuscleGroup, MuscleGroup[]][] = [
+  [/bench|press|push.?up|\bdips?\b/, 'chest', ['shoulders', 'triceps']],
+  [/\bdips?\b/, 'triceps', ['chest', 'shoulders']],
+  [/jm press|close.?grip/, 'triceps', ['chest']],
+  [/upright row/, 'shoulders', ['traps']],
+  [/press|military|\bohp\b|arnold/, 'shoulders', ['triceps']],
+  [/reverse fly|rear delt|face pull/, 'shoulders', ['upper_back']],
+  [/pull.?up|chin.?up|pulldown/, 'lats', ['biceps', 'upper_back']],
+  [/row/, 'upper_back', ['lats', 'biceps']],
+  [/squat|leg press|hack|lunge|step.?up/, 'quads', ['glutes']],
+  [/romanian|\brdl\b|stiff.?leg|good.?morning/, 'hamstrings', ['glutes']],
+  [/deadlift/, 'hamstrings', ['glutes', 'upper_back', 'traps']],
+  [/hip thrust/, 'glutes', ['hamstrings']],
+]
+
+/** Suggested helper muscles for a lift, from its name and main muscle. */
+export function guessHelpers(name: string, main: MuscleGroup): MuscleGroup[] {
+  const n = name.toLowerCase()
+  if (main === 'chest' && NOT_PRESS.test(n)) return []
+  for (const [re, m, helpers] of HELPER_RULES) if (m === main && re.test(n)) return helpers
+  return []
+}
+
+/** The helper muscles that count for an exercise: the user's choice if made, else the guess. Never the main muscle. */
+export function helperMuscles(e: Pick<Exercise, 'name' | 'muscleGroup' | 'secondaryMuscles'>): MuscleGroup[] {
+  return (e.secondaryMuscles ?? guessHelpers(e.name, e.muscleGroup)).filter((g) => g !== e.muscleGroup)
 }
 
 /** Bodyweight movements logged as added weight in Strong ("+25 kg"). */

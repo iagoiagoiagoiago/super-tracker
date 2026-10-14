@@ -9,7 +9,7 @@ import { META_PINNED_LIFTS, type Exercise, type ExerciseKind, type MuscleGroup, 
 import { useLiveQuery } from 'dexie-react-hooks'
 import { exerciseSeries, type SessionPoint } from '../gym/stats'
 import { useGymData } from '../gym/useGymData'
-import { EXERCISE_KINDS, MUSCLE_GROUPS } from '../lib/exerciseCatalog'
+import { EXERCISE_KINDS, MUSCLE_GROUPS, TRACKED_MUSCLES, guessHelpers, helperMuscles, muscleLabel } from '../lib/exerciseCatalog'
 import { describeSet, fmtKg, fmtRest, fmtTonnage, setE1rm, setLabels } from '../lib/gym'
 
 type Metric = 'e1rm' | 'weight' | 'volume' | 'reps'
@@ -177,6 +177,7 @@ function ExerciseView({ exercise, data }: { exercise: Exercise; data: NonNullabl
             ))}
           </select>
         </div>
+        <HelperMuscles exercise={exercise} />
       </Card>
 
       <h2 className="pt-1 text-[15px] font-bold">History <span className="text-faint">· {view.sessions.length}</span></h2>
@@ -211,5 +212,50 @@ function ExerciseView({ exercise, data }: { exercise: Exercise; data: NonNullabl
         )
       })}
     </Page>
+  )
+}
+
+/** Toggle the muscles that get a half set from this lift. Starts from the name-based suggestion. */
+function HelperMuscles({ exercise }: { exercise: Exercise }) {
+  const active = helperMuscles(exercise)
+  const suggested = guessHelpers(exercise.name, exercise.muscleGroup)
+  const custom = exercise.secondaryMuscles !== undefined && active.join() !== suggested.join()
+  const options = MUSCLE_GROUPS.filter((g) => TRACKED_MUSCLES.includes(g.value) && g.value !== exercise.muscleGroup)
+  const toggle = (g: MuscleGroup) => {
+    const next = active.includes(g) ? active.filter((x) => x !== g) : [...active, g]
+    // Keep the main-muscle order of MUSCLE_GROUPS so the list reads the same everywhere.
+    void db.exercises.update(exercise.id, { secondaryMuscles: MUSCLE_GROUPS.map((m) => m.value).filter((v) => next.includes(v)) })
+  }
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h3 className="text-[13px] font-semibold">
+          Also works <span className="font-normal text-faint">· ½ set each</span>
+        </h3>
+        {custom && (
+          <button onClick={() => void db.exercises.update(exercise.id, { secondaryMuscles: undefined })} className="text-xs font-semibold text-accent">
+            Reset
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((g) => {
+          const on = active.includes(g.value)
+          return (
+            <button
+              key={g.value}
+              onClick={() => toggle(g.value)}
+              aria-pressed={on}
+              className={`h-10 rounded-full px-3.5 text-[13px] font-semibold ${on ? 'bg-accent/20 text-accent ring-1 ring-accent/50' : 'bg-raised text-faint'}`}
+            >
+              {g.label}
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-2 text-[11px] text-dim">
+        Each working set counts 1 for {muscleLabel(exercise.muscleGroup).toLowerCase()} and ½ for every muscle picked here.
+      </p>
+    </div>
   )
 }

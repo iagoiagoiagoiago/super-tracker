@@ -33,6 +33,11 @@ export interface Exercise {
   id: ID
   name: string
   muscleGroup: MuscleGroup
+  /**
+   * Helper muscles that get a half set for every working set (dips → shoulders, triceps). Undefined = use the
+   * name-based guess (`guessHelpers`); an explicit array, even empty, is the user's choice.
+   */
+  secondaryMuscles?: MuscleGroup[]
   kind: ExerciseKind
   /** Default rest after each set, in seconds. */
   restSeconds: number

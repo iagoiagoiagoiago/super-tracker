@@ -176,6 +176,7 @@ function MuscleVolume({ muscles }: { muscles: GymStats['muscles'] }) {
           )
         })}
       </div>
+      <p className="mt-3 text-[11px] text-dim">Compound lifts add ½ set to their helper muscles (dips: chest 1, shoulders ½, triceps ½). Edit them on any exercise page.</p>
     </Card>
   )
 }

@@ -1,6 +1,6 @@
 import type { Exercise, ID, MuscleGroup, Workout, WorkoutSet } from '../db/schema'
 import { setE1rm } from '../lib/gym'
-import { TRACKED_MUSCLES } from '../lib/exerciseCatalog'
+import { HELPER_SET, TRACKED_MUSCLES, helperMuscles } from '../lib/exerciseCatalog'
 
 // ---------- Personal records ----------
 
@@ -219,10 +219,15 @@ export function gymStats(
   }
 
   // Working sets per muscle group per week. Every tracked muscle is listed, even at zero: a gap is information.
+  // Compounds also give each helper muscle HELPER_SET (dips: chest 1, shoulders 0.5, triceps 0.5).
   const perGroup = new Map<MuscleGroup, number>(TRACKED_MUSCLES.map((g) => [g, 0]))
+  const helpers = new Map<ID, MuscleGroup[]>()
   for (const s of rSets) {
-    const g = exercises.get(s.exerciseId)?.muscleGroup
-    if (g) perGroup.set(g, (perGroup.get(g) ?? 0) + 1)
+    const ex = exercises.get(s.exerciseId)
+    if (!ex) continue
+    perGroup.set(ex.muscleGroup, (perGroup.get(ex.muscleGroup) ?? 0) + 1)
+    if (!helpers.has(ex.id)) helpers.set(ex.id, helperMuscles(ex))
+    for (const h of helpers.get(ex.id)!) perGroup.set(h, (perGroup.get(h) ?? 0) + HELPER_SET)
   }
   const muscles = [...perGroup.entries()]
     .map(([group, n]) => ({ group, setsPerWeek: n / weeks }))
