@@ -23,6 +23,8 @@ for iPhone. Everything is stored on the device; there are no accounts and no ser
   thickness that grows with how often you hit each technique. Pan, pinch-zoom, drag nodes, drag-to-connect.
 - Technique statuses (want to learn → learning → hitting → A-game) with a bucket-list filter and a list view.
 - Session logging by tapping techniques on a mini map: what was taught, what you hit, what caught you.
+- A BJJ journal for game plans and reflections, and a JSON importer that merges past sessions, techniques and
+  notes into the existing map without overwriting anything.
 - **Focus cycles**: one focus position per side, with what you're working most, what's neglected, what keeps
   catching you, and rule-based suggestions (leaks, dead ends, stale techniques, one-tap promotions).
 

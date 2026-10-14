@@ -120,15 +120,26 @@ export interface Technique {
   updatedAt: number
 }
 
-export type ClassType = 'fundamentals' | 'advanced' | 'open_mat' | 'drilling' | 'private' | 'competition'
+export type ClassType =
+  | 'regular' // a normal no-gi class: technique + sparring
+  | 'open_mat'
+  | 'drilling'
+  | 'fundamentals'
+  | 'advanced'
+  | 'wrestling' // wrestling / judo / takedowns
+  | 'mma'
+  | 'gi' // the occasional gi class
+  | 'private'
+  | 'competition'
 
 export interface BjjSession {
   id: ID
   date: number
   classType: ClassType
-  durationMin: number
-  /** Session RPE, 1–10. */
-  rpe: number
+  /** Minutes. Optional: imported history often doesn't record it. */
+  durationMin?: number
+  /** Session RPE, 1–10. Optional for the same reason. */
+  rpe?: number
   /** Techniques taught in class. */
   taught: ID[]
   /** Techniques you landed in sparring. */
@@ -141,6 +152,24 @@ export interface BjjSession {
   worked?: string
   problem?: string
   nextFocus?: string
+  /** Free text: class content, details, anything else. */
+  notes?: string
+  source?: 'app' | 'import'
+  /** Stable key from an import file, so re-importing skips sessions already here. */
+  externalId?: string
+}
+
+/** A BJJ journal entry: game plans, reflections, instructional notes. */
+export interface BjjNote {
+  id: ID
+  title: string
+  body: string
+  /** When it was written, if known. */
+  date?: number
+  pinned?: boolean
+  createdAt: number
+  updatedAt: number
+  externalId?: string
 }
 
 export interface FocusCycle {

@@ -95,7 +95,7 @@ function SessionForm({ existing }: { existing?: BjjSession }) {
         </div>
       </Field>
 
-      <Field label="Duration" aside={`${draft.durationMin} min`}>
+      <Field label="Duration" aside={draft.durationMin ? `${draft.durationMin} min` : 'not recorded'}>
         <div className="grid grid-cols-[repeat(4,minmax(0,1fr))_auto] gap-1.5">
           {[60, 75, 90, 120].map((m) => (
             <Chip key={m} on={draft.durationMin === m} onClick={() => set('durationMin', m)}>
@@ -103,16 +103,16 @@ function SessionForm({ existing }: { existing?: BjjSession }) {
             </Chip>
           ))}
           <div className="flex rounded-[10px] bg-raised">
-            <button aria-label="15 minutes less" onClick={() => set('durationMin', Math.max(15, draft.durationMin - 15))} className="h-10 w-9 text-lg text-muted">−</button>
-            <button aria-label="15 minutes more" onClick={() => set('durationMin', Math.min(300, draft.durationMin + 15))} className="h-10 w-9 text-lg text-muted">+</button>
+            <button aria-label="15 minutes less" onClick={() => set('durationMin', Math.max(15, (draft.durationMin ?? 90) - 15))} className="h-10 w-9 text-lg text-muted">−</button>
+            <button aria-label="15 minutes more" onClick={() => set('durationMin', Math.min(300, (draft.durationMin ?? 90) + 15))} className="h-10 w-9 text-lg text-muted">+</button>
           </div>
         </div>
       </Field>
 
-      <Field label="Intensity" aside={`RPE ${draft.rpe} · ${RPE_LABEL(draft.rpe)}`}>
+      <Field label="Intensity" aside={draft.rpe ? `RPE ${draft.rpe} · ${RPE_LABEL(draft.rpe)}` : 'not recorded'}>
         <div role="radiogroup" aria-label="Intensity (RPE)" className="grid grid-cols-10 gap-1">
           {Array.from({ length: 10 }, (_, i) => i + 1).map((r) => {
-            const on = r <= draft.rpe
+            const on = r <= (draft.rpe ?? 0)
             return (
               <button
                 key={r}
@@ -184,6 +184,10 @@ function SessionForm({ existing }: { existing?: BjjSession }) {
         </div>
       </Field>
 
+      <Field label="Notes" aside="optional">
+        <TextArea value={draft.notes} placeholder="Class content, details, who you rolled with…" onChange={(v) => set('notes', v)} rows={4} />
+      </Field>
+
       <button onClick={save} disabled={saving} className="h-12 rounded-2xl bg-bjj font-bold text-[#0a0b0c] disabled:opacity-50">
         {existing ? 'Save changes' : 'Save session'}
       </button>
@@ -233,14 +237,14 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
   )
 }
 
-function TextArea({ value, placeholder, onChange }: { value?: string; placeholder: string; onChange: (v: string) => void }) {
+function TextArea({ value, placeholder, onChange, rows = 2 }: { value?: string; placeholder: string; onChange: (v: string) => void; rows?: number }) {
   return (
     <textarea
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       aria-label={placeholder}
-      rows={2}
+      rows={rows}
       className="w-full resize-none rounded-xl bg-raised p-3.5 text-[15px] text-text placeholder:text-faint outline-none focus:outline-2 focus:outline-accent"
     />
   )

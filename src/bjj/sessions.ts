@@ -2,10 +2,14 @@ import { db, newId } from '../db/db'
 import type { BjjSession, ClassType, ID } from '../db/schema'
 
 export const CLASS_TYPES: { value: ClassType; label: string }[] = [
+  { value: 'regular', label: 'Class' },
+  { value: 'open_mat', label: 'Open mat' },
+  { value: 'drilling', label: 'Drilling' },
+  { value: 'wrestling', label: 'Wrestling' },
+  { value: 'mma', label: 'MMA' },
   { value: 'fundamentals', label: 'Fundamentals' },
   { value: 'advanced', label: 'Advanced' },
-  { value: 'drilling', label: 'Drilling' },
-  { value: 'open_mat', label: 'Open mat' },
+  { value: 'gi', label: 'Gi' },
   { value: 'private', label: 'Private' },
   { value: 'competition', label: 'Competition' },
 ]
@@ -17,7 +21,7 @@ export type SessionDraft = Omit<BjjSession, 'id'>
 export function emptyDraft(now = Date.now()): SessionDraft {
   return {
     date: now,
-    classType: 'advanced',
+    classType: 'regular',
     durationMin: 90,
     rpe: 7,
     taught: [],
@@ -34,6 +38,7 @@ export async function saveSession(draft: SessionDraft, id?: ID): Promise<ID> {
     worked: draft.worked?.trim() || undefined,
     problem: draft.problem?.trim() || undefined,
     nextFocus: draft.nextFocus?.trim() || undefined,
+    notes: draft.notes?.trim() || undefined,
   }
   if (id) {
     await db.bjjSessions.put({ id, ...clean })
@@ -83,5 +88,9 @@ export function techniqueUsage(sessions: BjjSession[]): Map<ID, Usage> {
   return m
 }
 
+/** What load assumes when a session (usually imported) didn't record its length or intensity. */
+export const TYPICAL_DURATION_MIN = 90
+export const TYPICAL_RPE = 7
+
 /** Session load in arbitrary units: minutes × RPE (session-RPE method). */
-export const sessionLoad = (s: Pick<BjjSession, 'durationMin' | 'rpe'>) => s.durationMin * s.rpe
+export const sessionLoad = (s: Pick<BjjSession, 'durationMin' | 'rpe'>) => (s.durationMin ?? TYPICAL_DURATION_MIN) * (s.rpe ?? TYPICAL_RPE)

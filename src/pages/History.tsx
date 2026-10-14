@@ -69,6 +69,18 @@ export function History() {
 
 function BjjCard({ s, names }: { s: BjjSession; names: Map<ID, string> }) {
   const d = new Date(s.date)
+  const bare = !s.taught.length && !s.hit.length && !s.caughtBy.length && !s.notes && !s.worked && !s.problem && !s.nextFocus
+  if (bare) {
+    // Attendance-only sessions (e.g. imported from a class tracker): one line is enough.
+    return (
+      <Link to={`/bjj/session/${s.id}`} className="flex items-center gap-2.5 rounded-[14px] border border-[#1a2212] px-4 py-2.5 active:bg-surface">
+        <span className="h-1.5 w-1.5 rounded-full bg-bjj shadow-[0_0_6px_var(--color-bjj)]" />
+        <span className="flex-1 text-sm font-semibold">BJJ · {classLabel(s.classType)}</span>
+        {s.durationMin ? <span className="text-xs text-muted">{s.durationMin} min</span> : null}
+        <span className="text-xs text-faint">{d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+      </Link>
+    )
+  }
   const line = (ids: ID[]) => ids.map((id) => names.get(id)).filter(Boolean).join(', ')
   return (
     <Link to={`/bjj/session/${s.id}`} className="flex flex-col gap-2 rounded-[18px] border border-[#1f2a14] p-4 active:bg-surface">
@@ -79,11 +91,14 @@ function BjjCard({ s, names }: { s: BjjSession; names: Map<ID, string> }) {
         </span>
         <span className="shrink-0 text-xs text-faint">{d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
       </div>
-      <div className="flex gap-4 text-[13px] text-muted">
-        <span>{s.durationMin} min</span>
-        <span>RPE {s.rpe}</span>
-        {s.rounds ? <span>{s.rounds} rounds</span> : null}
-      </div>
+      {(s.durationMin || s.rpe || s.rounds || s.source === 'import') && (
+        <div className="flex gap-4 text-[13px] text-muted">
+          {s.durationMin ? <span>{s.durationMin} min</span> : null}
+          {s.rpe ? <span>RPE {s.rpe}</span> : null}
+          {s.rounds ? <span>{s.rounds} rounds</span> : null}
+          {s.source === 'import' && <span className="text-faint">imported</span>}
+        </div>
+      )}
       {(s.taught.length > 0 || s.hit.length > 0 || s.caughtBy.length > 0) && (
         <dl className="mt-1 grid grid-cols-[64px_minmax(0,1fr)] gap-x-3 gap-y-1 text-[13px]">
           {s.taught.length > 0 && (
@@ -106,6 +121,7 @@ function BjjCard({ s, names }: { s: BjjSession; names: Map<ID, string> }) {
           )}
         </dl>
       )}
+      {s.notes && <p className="line-clamp-2 whitespace-pre-line text-xs leading-relaxed text-faint">{s.notes}</p>}
       {s.nextFocus && <p className="truncate text-xs text-faint">Next: {s.nextFocus}</p>}
     </Link>
   )

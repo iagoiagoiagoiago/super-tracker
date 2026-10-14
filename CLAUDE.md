@@ -114,6 +114,20 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
   multi-highlight + search list; "+ New" creates a technique, and new positions if needed, without leaving the
   log). Map edge thickness = sessions hit in the last 90 days (`hitCounts`); technique panel shows hit/taught/
   caught counts (`techniqueUsage`). Load = minutes × RPE (`sessionLoad`), used by the dashboard.
+- Sessions: `durationMin`/`rpe` are optional (imported history rarely has them; load assumes 90 min × RPE 7 via
+  `TYPICAL_*`), `notes` is free text, `source: 'import'` + `externalId` mark imported ones. Class types: Class
+  (regular no-gi), Open mat, Drilling, Wrestling (incl. judo/takedowns), MMA, Fundamentals, Advanced, Gi, Private,
+  Competition. History shows attendance-only sessions as a slim row.
+- Journal (`bjjNotes`, DB v4; `/bjj/notes`, third title in the Map/Focus/Notes switcher): titled notes with optional
+  written date, pin, search. For game plans and reflections that aren't one session.
+- **BJJ journal import** (`src/import/bjjJournal.ts`, Settings → Import BJJ journal): JSON `format:
+  "super-tracker-bjj"`, `version: 1` with positions / techniques (by position names) / sessions (techniques by
+  name, `YYYY-MM-DD` dates at local noon) / notes. Merges by case-insensitive name: existing positions keep their
+  place, existing techniques keep their status (notes only filled where empty), sessions and notes with an `id`
+  already imported are skipped. Personal journal files are never committed; check one with
+  `BJJ_JOURNAL=/path/to/file.json npm test`.
+- Map status legend chips are toggles (hide e.g. Want + Learning to see the core game); hidden statuses persist
+  per device in localStorage. Positions with nothing visible fade.
 - Focus tab: one focus position per side (top + bottom), each a cycle with start date and goal; archived cycles
   form a history. Sections: working most, neglected, getting caught, next up (bucket list from this position).
   Rule-based suggestions: dead end, leak, stale, ready to promote.

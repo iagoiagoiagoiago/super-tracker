@@ -12,6 +12,23 @@ import { db } from '../db/db'
 import type { ID, Position, Side, Technique, TechniqueStatus } from '../db/schema'
 
 const TAB_BAR = 84
+const HIDDEN_KEY = 'super-tracker:map-hidden-statuses'
+
+/** Which statuses are hidden on the map is a per-device view preference, so localStorage is enough. */
+function loadHidden(): Set<TechniqueStatus> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]'))
+  } catch {
+    return new Set()
+  }
+}
+function saveHidden(s: Set<TechniqueStatus>) {
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...s]))
+  } catch {
+    // Storage unavailable: the filter just won't be remembered.
+  }
+}
 
 export function Bjj() {
   const data = useLiveQuery(async () => {
@@ -40,6 +57,14 @@ export function Bjj() {
 
   const [selection, setSelection] = useState<MapSelection>(initialSelect)
   const [filter, setFilter] = useState<MapFilter | 'focus'>('all')
+  const [hidden, setHidden] = useState<Set<TechniqueStatus>>(() => loadHidden())
+  const toggleStatus = (s: TechniqueStatus) => {
+    const next = new Set(hidden)
+    if (next.has(s)) next.delete(s)
+    else next.add(s)
+    setHidden(next)
+    saveHidden(next)
+  }
   const [mode, setMode] = useState<'map' | 'list'>('map')
   const [connectFrom, setConnectFrom] = useState<ID | null>(null)
   const [newTech, setNewTech] = useState<{ fromId: ID; toId: ID } | null>(null)
@@ -48,6 +73,10 @@ export function Bjj() {
   const [editTech, setEditTech] = useState<Technique | null>(null)
   const mapHandle = useRef<TechniqueMapHandle | null>(null)
 
+  const visibleTechniques = useMemo(
+    () => (hidden.size ? techniques.filter((t) => !hidden.has(t.status) || (selection?.type === 'technique' && selection.id === t.id)) : techniques),
+    [techniques, hidden, selection],
+  )
   const selectedPos = selection?.type === 'position' ? posById.get(selection.id) : undefined
   const selectedTech = selection?.type === 'technique' ? techniques.find((t) => t.id === selection.id) : undefined
 
@@ -80,7 +109,8 @@ export function Bjj() {
       {mode === 'map' && (
         <TechniqueMap
           positions={positions}
-          techniques={techniques}
+          techniques={visibleTechniques}
+          dimUnconnected={hidden.size > 0}
           hits={hits}
           filter={filter === 'focus' ? 'all' : filter}
           highlight={filter === 'focus' ? focusTechniques : undefined}
@@ -100,9 +130,11 @@ export function Bjj() {
         <div className="pointer-events-auto mx-auto flex max-w-lg flex-col gap-3 pt-2">
           <div className="flex items-center justify-between">
             <BjjNav />
-            <div className="flex gap-2">
-              <Link to="/bjj/log" aria-label="Log session" className="flex h-10 items-center rounded-xl bg-bjj px-3.5 text-sm font-bold text-[#0a0b0c] shadow-[0_0_16px_rgba(182,255,59,0.25)]">
-                Log
+            <div className="flex shrink-0 gap-2">
+              <Link to="/bjj/log" aria-label="Log session" className="flex h-10 w-10 items-center justify-center rounded-xl bg-bjj text-[#0a0b0c] shadow-[0_0_16px_rgba(182,255,59,0.25)]">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                </svg>
               </Link>
               <IconButton label={mode === 'map' ? 'Show list' : 'Show map'} onClick={() => setMode(mode === 'map' ? 'list' : 'map')}>
                 {mode === 'map' ? <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /> : <><circle cx="6" cy="17" r="2.5" /><circle cx="18" cy="17" r="2.5" /><circle cx="12" cy="6" r="2.5" /><path d="M8 15.5L11 8M16 15.5L13 8M8.5 17h7" /></>}
@@ -126,13 +158,24 @@ export function Bjj() {
                   </button>
                 ))}
               </div>
-              <div className="flex gap-3 text-[11px] text-faint">
-                {STATUS_ORDER.map((s) => (
-                  <span key={s} className="flex items-center gap-1.5">
-                    <span className="h-[7px] w-[7px] rounded-full" style={{ background: STATUS_COLOR[s], boxShadow: `0 0 6px ${STATUS_COLOR[s]}` }} />
-                    {STATUS_SHORT[s]}
-                  </span>
-                ))}
+              <div role="group" aria-label="Show statuses" className="-ml-2 flex gap-0.5 text-[11px]">
+                {STATUS_ORDER.map((s) => {
+                  const on = !hidden.has(s)
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => toggleStatus(s)}
+                      aria-pressed={on}
+                      className={`flex h-8 items-center gap-1.5 rounded-full px-2 transition-opacity ${on ? 'text-muted' : 'text-dim line-through opacity-60'}`}
+                    >
+                      <span
+                        className="h-[7px] w-[7px] rounded-full"
+                        style={{ background: on ? STATUS_COLOR[s] : 'transparent', border: `1px solid ${STATUS_COLOR[s]}`, boxShadow: on ? `0 0 6px ${STATUS_COLOR[s]}` : undefined }}
+                      />
+                      {STATUS_SHORT[s]}
+                    </button>
+                  )
+                })}
               </div>
             </>
           )}

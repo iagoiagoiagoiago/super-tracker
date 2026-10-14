@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { migrateMuscleGroup } from '../lib/exerciseCatalog'
 import type {
+  BjjNote,
   BjjSession,
   Exercise,
   FocusCycle,
@@ -20,6 +21,7 @@ export class SuperTrackerDB extends Dexie {
   positions!: EntityTable<Position, 'id'>
   techniques!: EntityTable<Technique, 'id'>
   bjjSessions!: EntityTable<BjjSession, 'id'>
+  bjjNotes!: EntityTable<BjjNote, 'id'>
   focusCycles!: EntityTable<FocusCycle, 'id'>
   meta!: EntityTable<MetaEntry, 'key'>
 
@@ -52,6 +54,11 @@ export class SuperTrackerDB extends Dexie {
             e.muscleGroup = migrateMuscleGroup(e.muscleGroup, e.name)
           }),
       )
+    // v4: journal notes, and an import key on BJJ sessions so re-importing a journal skips existing ones.
+    this.version(4).stores({
+      bjjSessions: 'id, date, externalId',
+      bjjNotes: 'id, updatedAt, externalId',
+    })
   }
 }
 
@@ -65,6 +72,7 @@ export const TABLE_NAMES = [
   'positions',
   'techniques',
   'bjjSessions',
+  'bjjNotes',
   'focusCycles',
   'meta',
 ] as const

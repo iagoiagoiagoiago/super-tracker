@@ -55,6 +55,7 @@ export function TechniqueMap({
   selectReserve = 0,
   readOnly = false,
   highlight,
+  dimUnconnected = false,
 }: {
   positions: Position[]
   techniques: Technique[]
@@ -74,6 +75,8 @@ export function TechniqueMap({
   readOnly?: boolean
   /** Techniques to emphasise (e.g. the ones picked in a session log); the rest are dimmed. */
   highlight?: Set<ID>
+  /** Fade positions with no technique shown (used when some statuses are hidden). */
+  dimUnconnected?: boolean
 }) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -125,7 +128,9 @@ export function TechniqueMap({
     if (selectedTech && t.id !== selectedTech.id) return 0.2
     return 1
   }
+  const connected = useMemo(() => new Set(techniques.flatMap((t) => [t.fromId, t.toId])), [techniques])
   const nodeOpacity = (p: Position) => {
+    if (dimUnconnected && !connected.has(p.id) && p.id !== selectedPos) return 0.25
     if (filter === 'bucket') return techniques.some((t) => t.status === 'want' && (t.fromId === p.id || t.toId === p.id)) ? 1 : 0.3
     if (selectedTech) return p.id === selectedTech.fromId || p.id === selectedTech.toId ? 1 : 0.35
     return 1
