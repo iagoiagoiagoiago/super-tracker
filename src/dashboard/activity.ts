@@ -1,5 +1,5 @@
 import type { BjjSession, Workout } from '../db/schema'
-import { sessionLoad } from '../bjj/sessions'
+import { isBareSession, sessionLoad } from '../bjj/sessions'
 
 const DAY = 86_400_000
 
@@ -31,6 +31,8 @@ export interface DayCell {
   date: number
   gym: string[]
   bjj: string[]
+  /** BJJ sessions that day; `bare` = attendance only (nothing logged), safe to remove from the calendar. */
+  bjjIds: { id: string; bare: boolean }[]
   future: boolean
 }
 
@@ -54,7 +56,7 @@ export function monthGrid(year: number, month: number, workouts: Workout[], sess
   const byDay = new Map<number, DayCell>()
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(year, month, d).getTime()
-    const cell: DayCell = { date, gym: [], bjj: [], future: date > now }
+    const cell: DayCell = { date, gym: [], bjj: [], bjjIds: [], future: date > now }
     byDay.set(date, cell)
     cells.push(cell)
   }
@@ -73,6 +75,7 @@ export function monthGrid(year: number, month: number, workouts: Workout[], sess
     const c = byDay.get(dayStart(s.date))
     if (c) {
       c.bjj.push('BJJ')
+      c.bjjIds.push({ id: s.id, bare: isBareSession(s) })
       bjjSessions++
     }
   }

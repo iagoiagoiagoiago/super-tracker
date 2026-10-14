@@ -74,7 +74,7 @@ export function Home() {
       {view && (
         <>
           <Card>
-            <SectionTitle aside={<Legend />}>Consistency</SectionTitle>
+            <SectionTitle aside={<Legend both />}>Consistency</SectionTitle>
             <MonthCalendar workouts={gym!.workouts} sessions={bjj!.sessions} now={view.now} />
           </Card>
 

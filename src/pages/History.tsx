@@ -5,7 +5,7 @@ import { EmptyState, Page } from '../components/ui'
 import { useGymData } from '../gym/useGymData'
 import { db } from '../db/db'
 import type { BjjSession, ID, WorkoutSet } from '../db/schema'
-import { classLabel } from '../bjj/sessions'
+import { classLabel, isBareSession } from '../bjj/sessions'
 import { bestSet, summarize, type WorkoutSummary } from '../gym/summaries'
 import { describeSet, fmtDuration, fmtTonnage } from '../lib/gym'
 
@@ -69,8 +69,7 @@ export function History() {
 
 function BjjCard({ s, names }: { s: BjjSession; names: Map<ID, string> }) {
   const d = new Date(s.date)
-  const bare = !s.taught.length && !s.hit.length && !s.caughtBy.length && !s.notes && !s.worked && !s.problem && !s.nextFocus
-  if (bare) {
+  if (isBareSession(s)) {
     // Attendance-only sessions (e.g. imported from a class tracker): one line is enough.
     return (
       <Link to={`/bjj/session/${s.id}`} className="flex items-center gap-2.5 rounded-[14px] border border-[#1a2212] px-4 py-2.5 active:bg-surface">

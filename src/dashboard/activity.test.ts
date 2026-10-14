@@ -25,6 +25,14 @@ describe('dashboard activity', () => {
     const oct12 = m.weeks.flat().find((c) => c && new Date(c.date).getDate() === 12)!
     expect(oct12.gym).toEqual(['ANT'])
     expect(oct12.bjj).toHaveLength(1)
+    expect(oct12.bjjIds[0].bare).toBe(true)
+  })
+
+  it('marks sessions with logged content as not bare', () => {
+    const logged = { ...bjj(at(2026, 10, 13)), notes: 'kata gatame' }
+    const m = monthGrid(2026, 9, [], [logged], NOW)
+    const oct13 = m.weeks.flat().find((c) => c && new Date(c.date).getDate() === 13)!
+    expect(oct13.bjjIds[0].bare).toBe(false)
   })
 
   it('sums load per week and sport', () => {

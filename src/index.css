@@ -21,6 +21,8 @@
   /* Sport tags */
   --color-gym: #3d8bff;
   --color-bjj: #b6ff3b;
+  /* Days with both: perceptual (OKLab) midpoint of gym blue and BJJ lime, saturated to match the neons. */
+  --color-both: #4fd1c0;
 
   /* BJJ technique statuses (neon) */
   --color-want: #b86bff;

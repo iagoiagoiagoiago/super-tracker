@@ -41,7 +41,7 @@ Tokens (`src/index.css`):
 | accent | #3D8BFF | primary actions, gym exercise names, rest timer |
 | done | #22C55E | completed sets, Finish |
 | danger | #FF6B5E | errors, "getting caught" |
-| gym / bjj | #3D8BFF / #B6FF3B | sport tags in charts and heatmap |
+| gym / bjj / both | #3D8BFF / #B6FF3B / #4FD1C0 | sport tags in charts and calendar (both = days with gym + BJJ) |
 | want / learning / hitting / agame | #B86BFF / #22E6FF / #B6FF3B / #FF3DA6 | technique status neons |
 
 Type: Geist Variable (self-hosted via @fontsource), tabular numbers. Titles 30px/800. Touch targets ≥ 44px.
@@ -146,7 +146,9 @@ strength trends, BJJ game status counts + focus link, backup reminder (warn afte
 - Implementation: `src/dashboard/activity.ts` (pure: `monthGrid`, `firstActiveMonth`, `weeklyLoad`, `weekStreak`;
   weeks start on Monday, local time) and `src/dashboard/charts.tsx` (`MonthCalendar` — browsable from the first
   month with training to now, `LoadChart`; tap-to-inspect, legend on every two-series chart). Gym workouts have no RPE, so their load uses `GYM_ASSUMED_RPE` = 7 (stated under the chart).
-  Days with both sports are split diagonally. Strength shows lifts pinned from an exercise page
+  Days with both sports are teal `--color-both` #4FD1C0 (OKLab midpoint of gym blue and BJJ lime, chroma ×1.3;
+  validated distinct from both incl. CVD). Calendar "+ Past BJJ" backfill mode: tap past days to add/remove an
+  attendance-only BJJ class (`addAttendance`; only bare sessions are removable); ‹ goes back 5 years while editing. Strength shows lifts pinned from an exercise page
   (`meta.pinnedLifts`, max 4), else the most-trained loaded lifts of the last 12 weeks.
 - Charts are hand-built SVG/HTML (no Recharts/React Flow) to keep the bundle small and the look exact.
   The BJJ lime fails the categorical lightness-balance check against gym blue (it's the brand neon) but passes

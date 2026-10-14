@@ -51,6 +51,18 @@ export async function saveSession(draft: SessionDraft, id?: ID): Promise<ID> {
 
 export const deleteSession = (id: ID) => db.bjjSessions.delete(id)
 
+/** Attendance only: nothing logged beyond the class type. */
+export function isBareSession(s: BjjSession): boolean {
+  return !s.taught.length && !s.hit.length && !s.caughtBy.length && !s.notes && !s.worked && !s.problem && !s.nextFocus && !s.rounds
+}
+
+/** Adds a BJJ class on a past day with nothing else logged (calendar backfill). Stored at local noon. */
+export async function addAttendance(day: number): Promise<ID> {
+  const d = new Date(day)
+  d.setHours(12, 0, 0, 0)
+  return saveSession({ ...emptyDraft(d.getTime()), durationMin: undefined, rpe: undefined })
+}
+
 export const HIT_WINDOW_DAYS = 90
 
 /** How many sessions each technique was hit in since `since` (one count per session). */

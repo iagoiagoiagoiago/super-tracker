@@ -1,33 +1,34 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from '../components/icons'
 import type { BjjSession, Workout } from '../db/schema'
+import { addAttendance, deleteSession } from '../bjj/sessions'
 import { dayStart, firstActiveMonth, monthGrid, type DayCell, type WeekLoad } from './activity'
 
 const GYM = 'var(--color-gym)'
 const BJJ = 'var(--color-bjj)'
+const BOTH = 'var(--color-both)'
 const EMPTY = '#15181b'
 
 const fmtDay = (t: number) => new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 const fmtWeek = (t: number) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(Math.round(n)))
 
-export function Legend() {
+export function Legend({ both = false }: { both?: boolean }) {
+  const items: [string, string][] = [['Gym', GYM], ['BJJ', BJJ], ...(both ? ([['Both', BOTH]] as [string, string][]) : [])]
   return (
     <div className="flex gap-3 text-[11px] text-muted">
-      <span className="flex items-center gap-1.5">
-        <span className="h-2 w-2 rounded-[2px]" style={{ background: GYM }} />
-        Gym
-      </span>
-      <span className="flex items-center gap-1.5">
-        <span className="h-2 w-2 rounded-[2px]" style={{ background: BJJ }} />
-        BJJ
-      </span>
+      {items.map(([label, color]) => (
+        <span key={label} className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-[2px]" style={{ background: color }} />
+          {label}
+        </span>
+      ))}
     </div>
   )
 }
 
 /**
- * One month as a Monday-first calendar. Gym days blue, BJJ lime, both split diagonally. ‹ › switch months,
+ * One month as a Monday-first calendar. Gym days blue, BJJ lime, days with both teal (a blend of the two). ‹ › switch months,
  * from the first month with training up to the current month. Tap a day for what you did.
  */
 export function MonthCalendar({
@@ -42,11 +43,30 @@ export function MonthCalendar({
   const today = new Date(now)
   const [ym, setYm] = useState({ year: today.getFullYear(), month: today.getMonth() })
   const [picked, setPicked] = useState<number | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [hint, setHint] = useState<string | null>(null)
+
+  /** Backfill: a day without BJJ gets a class; a day whose only BJJ is attendance loses it. Logged sessions are kept. */
+  async function toggleDay(c: DayCell) {
+    if (c.future) return
+    setPicked(c.date)
+    const bare = c.bjjIds.filter((x) => x.bare)
+    if (!c.bjjIds.length) {
+      await addAttendance(c.date)
+      setHint(null)
+    } else if (bare.length === c.bjjIds.length) {
+      await deleteSession(bare[bare.length - 1].id)
+      setHint(null)
+    } else {
+      setHint(`${fmtDay(c.date)} has a logged session. Edit or delete it from History.`)
+    }
+  }
   const view = useMemo(() => monthGrid(ym.year, ym.month, workouts, sessions, now), [ym, workouts, sessions, now])
   const first = useMemo(() => firstActiveMonth(workouts, sessions, now), [workouts, sessions, now])
 
   const idx = (y: number, m: number) => y * 12 + m
-  const canPrev = idx(ym.year, ym.month) > idx(first.year, first.month)
+  // Backfilling may need months before the first logged training; allow a few years back while editing.
+  const canPrev = idx(ym.year, ym.month) > (editing ? idx(today.getFullYear() - 5, 0) : idx(first.year, first.month))
   const canNext = idx(ym.year, ym.month) < idx(today.getFullYear(), today.getMonth())
   const shift = (d: number) => {
     const n = idx(ym.year, ym.month) + d
@@ -59,7 +79,7 @@ export function MonthCalendar({
   const active = cells.find((c) => c && c.date === picked) ?? cells.find((c) => c && c.date === todayStart) ?? null
 
   const fill = (c: DayCell) => {
-    if (c.gym.length && c.bjj.length) return `linear-gradient(135deg, ${GYM} 0 50%, ${BJJ} 50% 100%)`
+    if (c.gym.length && c.bjj.length) return BOTH
     if (c.gym.length) return GYM
     if (c.bjj.length) return BJJ
     return c.future ? 'transparent' : EMPTY
@@ -98,8 +118,9 @@ export function MonthCalendar({
           c ? (
             <button
               key={c.date}
-              onClick={() => setPicked(c.date)}
-              aria-label={`${fmtDay(c.date)}: ${describe(c)}`}
+              onClick={() => (editing ? void toggleDay(c) : setPicked(c.date))}
+              disabled={editing && c.future}
+              aria-label={`${fmtDay(c.date)}: ${describe(c)}${editing ? (c.bjjIds.length ? '. Tap to remove the BJJ class' : '. Tap to add a BJJ class') : ''}`}
               className={`relative flex aspect-square items-center justify-center rounded-[8px] text-[12px] font-semibold ${
                 c.future ? 'border border-[#15181b] text-dim' : ''
               } ${active?.date === c.date ? 'ring-2 ring-text ring-offset-2 ring-offset-surface' : ''}`}
@@ -114,10 +135,34 @@ export function MonthCalendar({
           ),
         )}
       </div>
-      {active && (
-        <p className="text-xs text-muted" aria-live="polite">
-          <span className="font-semibold text-text">{fmtDay(active.date)}</span> · {describe(active)}
-        </p>
+      {editing ? (
+        <div className="flex items-center gap-3 rounded-xl border border-bjj/30 bg-bjj/10 px-3.5 py-2.5">
+          <p className="flex-1 text-xs leading-relaxed text-[#d6ff8f]" aria-live="polite">
+            {hint ?? 'Tap past days to add or remove a BJJ class. Use ‹ to go back further.'}
+          </p>
+          <button
+            onClick={() => {
+              setEditing(false)
+              setHint(null)
+            }}
+            className="h-8 shrink-0 rounded-lg bg-bjj px-3 text-xs font-bold text-[#0a0b0c]"
+          >
+            Done
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          {active ? (
+            <p className="min-w-0 text-xs text-muted" aria-live="polite">
+              <span className="font-semibold text-text">{fmtDay(active.date)}</span> · {describe(active)}
+            </p>
+          ) : (
+            <span />
+          )}
+          <button onClick={() => setEditing(true)} className="shrink-0 text-xs font-semibold text-faint">
+            + Past BJJ
+          </button>
+        </div>
       )}
     </div>
   )
