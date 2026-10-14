@@ -72,6 +72,29 @@ describe('backup', () => {
     expect((await b.exercises.get('x'))?.muscleGroup).toBe('biceps')
   })
 
+  it('converts want techniques in v1 backups into bucket items', async () => {
+    const old = {
+      format: 'super-tracker-backup',
+      version: 1,
+      exportedAt: 1,
+      tables: {
+        positions: [
+          { id: 'a', name: 'Standing' },
+          { id: 'b', name: 'Side control' },
+        ],
+        techniques: [{ id: 't', name: 'Ankle pick', fromId: 'a', toId: 'b', status: 'want', createdAt: 1, updatedAt: 1 }],
+        bjjSessions: [],
+        bjjNotes: [{ id: 'n', title: 'gone', body: '' }],
+      },
+    }
+    const b = freshDb()
+    dbs.push(b)
+    await restoreBackup(b, parseBackup(JSON.stringify(old)))
+    expect(await b.techniques.count()).toBe(0)
+    expect(await b.positions.count()).toBe(0)
+    expect((await b.bucketItems.toArray()).map((i) => i.text)).toEqual(['Ankle pick'])
+  })
+
   it('rejects files that are not backups', () => {
     expect(() => parseBackup('not json')).toThrow(BackupError)
     expect(() => parseBackup('{"hello":1}')).toThrow(BackupError)

@@ -1,9 +1,11 @@
 import { TABLE_NAMES, type SuperTrackerDB, type TableName } from './db'
 import { META_LAST_BACKUP } from './schema'
 import { migrateMuscleGroup } from '../lib/exerciseCatalog'
+import { wantsToBucket } from '../bjj/legacy'
 
 export const BACKUP_FORMAT = 'super-tracker-backup'
-export const BACKUP_VERSION = 1
+/** v2: bucketItems replaces bjjNotes and the "want" technique status (v1 files are converted on restore). */
+export const BACKUP_VERSION = 2
 
 export interface Backup {
   format: typeof BACKUP_FORMAT
@@ -52,11 +54,12 @@ export function parseBackup(text: string): Backup {
 
 /** Replaces everything on the device with the backup's contents, atomically. */
 export async function restoreBackup(db: SuperTrackerDB, backup: Backup): Promise<void> {
+  const tables = upgradeTables(backup)
   await db.transaction('rw', TABLE_NAMES.map((t) => db.table(t)), async () => {
     for (const name of TABLE_NAMES) {
       const table = db.table(name)
       await table.clear()
-      let rows = backup.tables[name] ?? []
+      let rows = tables[name] ?? []
       // Backups made before the muscle split still say arms / back / legs.
       if (name === 'exercises') {
         rows = (rows as { muscleGroup: string; name: string }[]).map((e) => ({ ...e, muscleGroup: migrateMuscleGroup(e.muscleGroup, e.name) }))
@@ -97,4 +100,21 @@ export async function exportBackup(db: SuperTrackerDB): Promise<boolean> {
 
   await db.meta.put({ key: META_LAST_BACKUP, value: backup.exportedAt })
   return true
+}
+
+/** Brings an older backup's tables up to the current shape. */
+export function upgradeTables(backup: Backup): Partial<Record<TableName, unknown[]>> {
+  const tables: Partial<Record<TableName, unknown[]>> = { ...backup.tables }
+  if (backup.version < 2) {
+    type Row = { id: string }
+    const positions = (tables.positions ?? []) as Parameters<typeof wantsToBucket>[0]
+    const techniques = (tables.techniques ?? []) as Parameters<typeof wantsToBucket>[1]
+    const out = wantsToBucket(positions, techniques, (tables.bjjSessions ?? []) as Parameters<typeof wantsToBucket>[2])
+    const gone = new Set([...out.removedTechniqueIds, ...out.removedPositionIds])
+    const promoted = new Set(out.promotedTechniqueIds)
+    tables.techniques = techniques.filter((t) => !gone.has(t.id)).map((t) => (promoted.has(t.id) ? { ...t, status: 'learning' } : t))
+    tables.positions = positions.filter((p) => !gone.has((p as Row).id))
+    tables.bucketItems = [...((tables.bucketItems ?? []) as unknown[]), ...out.items]
+  }
+  return tables
 }

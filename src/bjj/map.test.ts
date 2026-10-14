@@ -27,8 +27,8 @@ describe('map geometry', () => {
   })
 
   it('colors a node by its best technique status', () => {
-    const ts = [tech('t1', 'a', 'b', 'want'), tech('t2', 'b', 'c', 'agame')]
-    expect(nodeColor('a', ts)).toBe(STATUS_COLOR.want)
+    const ts = [tech('t1', 'a', 'b', 'learning'), tech('t2', 'b', 'c', 'agame')]
+    expect(nodeColor('a', ts)).toBe(STATUS_COLOR.learning)
     expect(nodeColor('b', ts)).toBe(STATUS_COLOR.agame)
     expect(nodeColor('zzz', ts)).toBe(NEUTRAL)
   })

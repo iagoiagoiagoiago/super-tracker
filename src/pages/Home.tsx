@@ -18,16 +18,18 @@ import { formatDayHeader } from '../lib/time'
 export function Home() {
   const gym = useGymData()
   const bjj = useLiveQuery(async () => {
-    const [sessions, techniques, positions, cycles] = await Promise.all([
+    const [sessions, techniques, positions, cycles, bucket] = await Promise.all([
       db.bjjSessions.toArray(),
       db.techniques.toArray(),
       db.positions.toArray(),
       db.focusCycles.toArray(),
+      db.bucketItems.toArray(),
     ])
     const now = Date.now()
     const focus = cycles.filter((c) => !c.endedAt).map((c) => analyzeFocus(c, positions, techniques, sessions, now))
     const pinned = ((await db.meta.get(META_PINNED_LIFTS))?.value as string[] | undefined) ?? []
-    return { sessions, techniques, focus, now, pinned }
+    const bucketOpen = bucket.filter((b) => !b.doneAt).length
+    return { sessions, techniques, focus, now, pinned, bucketOpen }
   })
 
   const view = useMemo(() => {
@@ -132,6 +134,13 @@ export function Home() {
                       </span>
                     </div>
                   ))}
+                  <Link to="/bjj/bucket">
+                    <div className="text-[18px] font-bold text-text">{bjj?.bucketOpen ?? 0}</div>
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full border border-faint" />
+                      Bucket
+                    </span>
+                  </Link>
                 </div>
               </>
             )}

@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 
-/** Large-title switcher between the technique map, the focus view and the journal. */
+/** Large-title switcher between the technique map, the focus view and the bucket list. */
 export function BjjNav() {
   const cls = ({ isActive }: { isActive: boolean }) =>
     `text-[23px] font-extrabold tracking-tight transition-colors ${isActive ? 'text-text' : 'text-[#3a3f45] hover:text-dim'}`
@@ -12,8 +12,8 @@ export function BjjNav() {
       <NavLink to="/bjj/focus" className={cls}>
         Focus
       </NavLink>
-      <NavLink to="/bjj/notes" className={cls}>
-        Notes
+      <NavLink to="/bjj/bucket" className={cls}>
+        Bucket
       </NavLink>
     </nav>
   )

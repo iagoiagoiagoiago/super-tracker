@@ -98,7 +98,8 @@ export interface WorkoutSet {
 
 export type Side = 'top' | 'bottom'
 
-export type TechniqueStatus = 'want' | 'learning' | 'hitting' | 'agame'
+/** Your level with a technique on the map. Things you only want to try live in the bucket list instead. */
+export type TechniqueStatus = 'learning' | 'hitting' | 'agame'
 
 /** A bubble on the map: a position, or a submission end point. */
 export interface Position {
@@ -164,16 +165,17 @@ export interface BjjSession {
   externalId?: string
 }
 
-/** A BJJ journal entry: game plans, reflections, instructional notes. */
-export interface BjjNote {
+/** Something you want to pull off. Free text; each check logs one rep (a time you landed or drilled it). */
+export interface BucketItem {
   id: ID
-  title: string
-  body: string
-  /** When it was written, if known. */
-  date?: number
-  pinned?: boolean
+  text: string
+  /** Optional details: setup, where you saw it. */
+  note?: string
+  /** Timestamps of logged reps, oldest first. */
+  reps: number[]
   createdAt: number
-  updatedAt: number
+  /** Set when you mark it as pulled off; it moves to the Done section. */
+  doneAt?: number
   externalId?: string
 }
 

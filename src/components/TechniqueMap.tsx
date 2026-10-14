@@ -1,9 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
-import { boundsOf, edgeGeometries, edgeWidth, NEUTRAL, nodeColor, STATUS_COLOR } from '../bjj/map'
+import { boundsOf, edgeGeometries, edgeWidth, NEUTRAL, nodeColor, STATUS_COLOR, STATUS_ORDER } from '../bjj/map'
 import type { ID, Position, Technique } from '../db/schema'
 
 export type MapSelection = { type: 'position'; id: ID } | { type: 'technique'; id: ID } | null
-export type MapFilter = 'all' | 'bucket'
 
 interface View {
   x: number
@@ -17,6 +16,9 @@ type Gesture =
   | { type: 'edge'; id: ID; sx: number; sy: number; moved: boolean }
   | { type: 'connect'; fromId: ID }
   | { type: 'pinch'; d0: number; v0: View; wx: number; wy: number }
+
+// Learning work stays quiet so the techniques you actually hit carry the picture.
+const BASE_ALPHA = { learning: 0.2, hitting: 0.9, agame: 1 }
 
 const MIN_K = 0.35
 const MAX_K = 2.5
@@ -44,7 +46,6 @@ export function TechniqueMap({
   positions,
   techniques,
   hits,
-  filter,
   selection,
   onSelect,
   onMove,
@@ -60,7 +61,6 @@ export function TechniqueMap({
   positions: Position[]
   techniques: Technique[]
   hits: Map<ID, number>
-  filter: MapFilter
   selection: MapSelection
   onSelect: (s: MapSelection) => void
   onMove: (id: ID, x: number, y: number) => void
@@ -101,9 +101,35 @@ export function TechniqueMap({
     setUserView(fitView(positions, size.w, visTop, visBottom))
   }
   const view = userView ?? fitView(positions, size.w, visTop, visBottom)
+  // The view on screen. While a pan / pinch / wheel is running it moves ahead of React state: the transform is
+  // written straight to the DOM (applyView) and committed to state once the gesture ends, so a frame never re-renders
+  // the whole map. That is what keeps panning smooth on a phone.
   const viewRef = useRef(view)
+  const worldRef = useRef<SVGGElement>(null)
+  const dividerRef = useRef<SVGGElement>(null)
+  const live = useRef(false)
+  const commitTimer = useRef<number | undefined>(undefined)
+  function applyView(v: View) {
+    viewRef.current = v
+    live.current = true
+    worldRef.current?.setAttribute('transform', `translate(${v.x},${v.y}) scale(${v.k})`)
+    dividerRef.current?.setAttribute('transform', `translate(0,${v.y})`)
+    const el = box.current
+    if (el) {
+      el.style.backgroundSize = `${22 * v.k}px ${22 * v.k}px`
+      el.style.backgroundPosition = `${v.x}px ${v.y}px`
+    }
+  }
+  function commitView() {
+    window.clearTimeout(commitTimer.current)
+    if (!live.current) return
+    live.current = false
+    setUserView(viewRef.current)
+  }
   useLayoutEffect(() => {
-    viewRef.current = view
+    // A re-render mid-gesture (new data) must not snap the map back to the last committed view.
+    if (live.current) applyView(viewRef.current)
+    else viewRef.current = view
     handleRef?.({
       center: () => ({ x: (size.w / 2 - view.x) / view.k, y: ((visTop + visBottom) / 2 - view.y) / view.k }),
       visibleY: () => ({ top: (visTop - view.y) / view.k, bottom: (visBottom - view.y) / view.k }),
@@ -121,19 +147,39 @@ export function TechniqueMap({
   const selectedPos = selection?.type === 'position' ? selection.id : null
   const selectedTech = selection?.type === 'technique' ? techById.get(selection.id) : undefined
 
+  /** Something is singled out (a selection or a highlight set); everything else steps back. */
+  const emphasis = (t: Technique): boolean | null => {
+    if (highlight && highlight.size) return highlight.has(t.id)
+    if (selectedPos) return t.fromId === selectedPos || t.toId === selectedPos
+    if (selectedTech) return t.id === selectedTech.id
+    return null
+  }
   const edgeOpacity = (t: Technique) => {
-    if (highlight && highlight.size) return highlight.has(t.id) ? 1 : 0.28
-    if (filter === 'bucket' && t.status !== 'want') return 0.12
-    if (selectedPos && t.fromId !== selectedPos && t.toId !== selectedPos) return 0.2
-    if (selectedTech && t.id !== selectedTech.id) return 0.2
-    return 1
+    const e = emphasis(t)
+    return e === null ? BASE_ALPHA[t.status] : e ? 1 : 0.1
   }
   const connected = useMemo(() => new Set(techniques.flatMap((t) => [t.fromId, t.toId])), [techniques])
+  const neighbours = useMemo(
+    () => new Set(selectedPos ? techniques.filter((t) => t.fromId === selectedPos || t.toId === selectedPos).flatMap((t) => [t.fromId, t.toId]) : []),
+    [techniques, selectedPos],
+  )
+  const highlightNodes = useMemo(
+    () => new Set(highlight?.size ? techniques.filter((t) => highlight.has(t.id)).flatMap((t) => [t.fromId, t.toId]) : []),
+    [techniques, highlight],
+  )
+  /** Bubble size grows with how many techniques run through a position: hubs of your game read at a glance. */
+  const degree = useMemo(() => {
+    const d = new Map<ID, number>()
+    for (const t of techniques) for (const id of [t.fromId, t.toId]) d.set(id, (d.get(id) ?? 0) + 1)
+    return d
+  }, [techniques])
   const nodeOpacity = (p: Position) => {
     if (dimUnconnected && !connected.has(p.id) && p.id !== selectedPos) return 0.25
-    if (filter === 'bucket') return techniques.some((t) => t.status === 'want' && (t.fromId === p.id || t.toId === p.id)) ? 1 : 0.3
-    if (selectedTech) return p.id === selectedTech.fromId || p.id === selectedTech.toId ? 1 : 0.35
-    return 1
+    if (selectedTech) return p.id === selectedTech.fromId || p.id === selectedTech.toId ? 1 : 0.3
+    if (selectedPos) return p.id === selectedPos || neighbours.has(p.id) ? 1 : 0.3
+    if (highlight && highlight.size) return highlightNodes.has(p.id) ? 1 : 0.45
+    // Positions where you only have learning work step back with their arrows.
+    return nodeColor(p.id, techniques) === STATUS_COLOR.learning ? 0.5 : 1
   }
 
   // ---------- gestures ----------
@@ -188,11 +234,11 @@ export function TechniqueMap({
       const [a, b] = [...pointers.current.values()]
       const k = clamp((g.v0.k * Math.hypot(a.x - b.x, a.y - b.y)) / g.d0, MIN_K, MAX_K)
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
-      setUserView({ k, x: mid.x - g.wx * k, y: mid.y - g.wy * k })
+      applyView({ k, x: mid.x - g.wx * k, y: mid.y - g.wy * k })
     } else if (g.type === 'pan') {
       if (!g.moved && Math.hypot(p.x - g.sx, p.y - g.sy) < 5) return
       g.moved = true
-      setUserView({ ...g.v0, x: g.v0.x + p.x - g.sx, y: g.v0.y + p.y - g.sy })
+      applyView({ ...g.v0, x: g.v0.x + p.x - g.sx, y: g.v0.y + p.y - g.sy })
     } else if (g.type === 'node') {
       if (!g.moved && Math.hypot(p.x - g.sx, p.y - g.sy) < 7) return
       if (readOnly) {
@@ -216,14 +262,17 @@ export function TechniqueMap({
     const g = gesture.current
     if (!g) return
     if (g.type === 'pinch') {
-      if (pointers.current.size === 0) gesture.current = null
-      else {
+      if (pointers.current.size === 0) {
+        gesture.current = null
+        commitView()
+      } else {
         const [rest] = [...pointers.current.values()]
         gesture.current = { type: 'pan', sx: rest.x, sy: rest.y, v0: viewRef.current, moved: true }
       }
       return
     }
     gesture.current = null
+    commitView()
     if (g.type === 'node') {
       if (!g.moved) {
         const deselect = selectedPos === g.id
@@ -271,19 +320,25 @@ export function TechniqueMap({
     const v = viewRef.current
     const w = toWorld(p, v)
     const k = clamp(v.k * Math.exp(-e.deltaY * 0.0015), MIN_K, MAX_K)
-    setUserView({ k, x: p.x - w.x * k, y: p.y - w.y * k })
+    applyView({ k, x: p.x - w.x * k, y: p.y - w.y * k })
+    window.clearTimeout(commitTimer.current)
+    commitTimer.current = window.setTimeout(commitView, 160)
   }
 
   // ---------- render ----------
 
   const colorOf = (t: Technique) => STATUS_COLOR[t.status]
-  const showTechLabels = (t: Technique) =>
-    view.k >= 1.35 ||
-    t.id === selectedTech?.id ||
-    !!highlight?.has(t.id) ||
-    (selectedPos !== null && (t.fromId === selectedPos || t.toId === selectedPos))
+  const showTechLabel = (t: Technique) => view.k >= 1.5 || emphasis(t) === true
+  const showSubLabel = (p: Position) => view.k >= 1.1 || p.id === selectedPos || neighbours.has(p.id) || highlightNodes.has(p.id)
+  const radius = (p: Position) => (p.kind === 'submission' ? 4.5 : 9 + Math.min(6, Math.sqrt(degree.get(p.id) ?? 0) * 1.6))
   const selected = selectedPos ? posMap.get(selectedPos) : undefined
-  const dividerY = view.y
+  // Draw quiet edges first so emphasised and A-game ones sit on top.
+  const rank = (id: ID) => {
+    const t = techById.get(id)!
+    const e = emphasis(t)
+    return (e ? 10 : e === false ? -10 : 0) + STATUS_ORDER.indexOf(t.status)
+  }
+  const order = [...edges].sort((a, b) => rank(a.id) - rank(b.id))
 
   return (
     <div
@@ -309,126 +364,101 @@ export function TechniqueMap({
           onPointerCancel={onPointerUp}
           onWheel={onWheel}
         >
+          {/* No SVG filters: blur filters re-rasterise on every frame and were what made the map lag on iPhone.
+              The glow is a soft radial gradient behind each bubble and a wide translucent stroke under each edge. */}
           <defs>
-            <filter id="goo" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="b" />
-              <feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10" />
-            </filter>
-            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3.5" result="g" />
-              <feMerge>
-                <feMergeNode in="g" />
-                <feMergeNode in="g" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
+            {STATUS_ORDER.map((st) => (
+              <radialGradient key={st} id={`halo-${st}`}>
+                <stop offset="0%" stopColor={STATUS_COLOR[st]} stopOpacity={0.45} />
+                <stop offset="100%" stopColor={STATUS_COLOR[st]} stopOpacity={0} />
+              </radialGradient>
+            ))}
           </defs>
 
-          {/* Zone divider + labels in screen space */}
-          <line x1={0} x2={size.w} y1={dividerY} y2={dividerY} stroke="#262a30" strokeDasharray="3 6" />
-          <text x={16} y={dividerY - 10} fill="#4a5058" fontSize={10} fontWeight={600} letterSpacing={1.6}>TOP · PASSING</text>
-          <text x={16} y={dividerY + 20} fill="#4a5058" fontSize={10} fontWeight={600} letterSpacing={1.6}>BOTTOM · GUARD</text>
+          {/* Zone divider + labels in screen space (only y follows the view) */}
+          <g ref={dividerRef} transform={`translate(0,${view.y})`} pointerEvents="none">
+            <line x1={0} x2={size.w} y1={0} y2={0} stroke="#262a30" strokeDasharray="3 6" />
+            <text x={16} y={-10} fill="#4a5058" fontSize={10} fontWeight={600} letterSpacing={1.6}>TOP · PASSING</text>
+            <text x={16} y={20} fill="#4a5058" fontSize={10} fontWeight={600} letterSpacing={1.6}>BOTTOM · GUARD</text>
+          </g>
 
-          <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
-            {/* Slime: thick blurred strokes + blobs, thresholded so joins melt together */}
-            <g filter="url(#goo)" fill="none" strokeLinecap="round">
-              {edges.map((g) => {
+          <g ref={worldRef} transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
+            {/* Edges: soft halo + neon core, plus a direction arrow on the ones in focus */}
+            <g fill="none" strokeLinecap="round">
+              {order.map((g) => {
                 const t = techById.get(g.id)!
-                return <path key={g.id} d={g.path} stroke={colorOf(t)} strokeWidth={edgeWidth(t.status, hits.get(t.id) ?? 0) * 3.4} opacity={0.5 * edgeOpacity(t)} />
+                const w = edgeWidth(t.status, hits.get(t.id) ?? 0) * (t.status === 'learning' && emphasis(t) !== true ? 0.7 : 1)
+                const o = edgeOpacity(t)
+                const strong = emphasis(t) === true || (emphasis(t) === null && t.status !== 'learning')
+                return (
+                  <g key={g.id} stroke={colorOf(t)} opacity={o}>
+                    {strong && <path d={g.path} strokeWidth={w * 4} strokeOpacity={0.16} />}
+                    <path d={g.path} strokeWidth={w} />
+                    {emphasis(t) === true && (
+                      <path
+                        d="M-4,-4.5 L3,0 L-4,4.5"
+                        transform={`translate(${g.mid.x},${g.mid.y}) rotate(${g.angle})`}
+                        strokeWidth={1.8}
+                        strokeLinejoin="round"
+                      />
+                    )}
+                  </g>
+                )
               })}
-              {shown.map((p) => (
-                <circle key={p.id} cx={p.x} cy={p.y} r={p.kind === 'submission' ? 9 : 16} fill={nodeColor(p.id, techniques)} opacity={0.5 * nodeOpacity(p)} />
+            </g>
+
+            {/* Generous invisible hit targets for edges */}
+            <g fill="none" stroke="transparent">
+              {edges.map((g) => (
+                <path key={g.id} d={g.path} data-edge={g.id} strokeWidth={20 / view.k} />
               ))}
             </g>
 
-            {/* Neon cores */}
-            <g filter="url(#glow)" fill="none" strokeLinecap="round">
-              {edges.map((g) => {
-                const t = techById.get(g.id)!
-                return (
-                  <path
-                    key={g.id}
-                    d={g.path}
-                    stroke={colorOf(t)}
-                    strokeWidth={edgeWidth(t.status, hits.get(t.id) ?? 0)}
-                    strokeDasharray={t.status === 'want' ? '3 5' : undefined}
-                    opacity={edgeOpacity(t)}
-                  />
-                )
-              })}
-            </g>
-
-            {/* Flow pulse along techniques you actually use, in the direction of the technique */}
-            <g fill="none" stroke="#fff" strokeWidth={1.3} strokeLinecap="round" strokeDasharray="2 14" opacity={0.55}>
-              {edges.map((g) => {
-                const t = techById.get(g.id)!
-                const pulse = highlight?.size ? highlight.has(t.id) : t.status === 'hitting' || t.status === 'agame' || t.id === selectedTech?.id
-                if (!pulse) return null
-                return <path key={g.id} d={g.path} className="map-flow" opacity={edgeOpacity(t)} />
-              })}
-            </g>
-
-            {/* Direction chevrons */}
-            {edges.map((g) => {
-              const t = techById.get(g.id)!
+            {/* Nodes: halo, then the bubble */}
+            {shown.map((p) => {
+              const c = nodeColor(p.id, techniques)
+              const st = STATUS_ORDER.find((x) => STATUS_COLOR[x] === c)
+              const r = radius(p)
+              const o = nodeOpacity(p)
               return (
-                <path
-                  key={g.id}
-                  d="M-3.5,-4 L2.5,0 L-3.5,4"
-                  transform={`translate(${g.mid.x},${g.mid.y}) rotate(${g.angle})`}
-                  fill="none"
-                  stroke={colorOf(t)}
-                  strokeWidth={1.6}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={0.9 * edgeOpacity(t)}
-                />
+                <g key={p.id} opacity={o}>
+                  {st && st !== 'learning' && <circle cx={p.x} cy={p.y} r={r * 2.6} fill={`url(#halo-${st})`} />}
+                  {p.kind === 'submission' ? (
+                    <circle cx={p.x} cy={p.y} r={r} fill={c} />
+                  ) : (
+                    <circle cx={p.x} cy={p.y} r={r} fill={c === NEUTRAL ? '#0b0c0e' : `${c}24`} stroke={c === NEUTRAL ? '#5e656d' : c} strokeWidth={p.id === selectedPos ? 2.6 : 1.6} />
+                  )}
+                </g>
               )
             })}
-
-            {/* Generous invisible hit targets for edges */}
-            {edges.map((g) => (
-              <path key={g.id} d={g.path} data-edge={g.id} stroke="transparent" strokeWidth={20 / view.k} fill="none" />
-            ))}
-
-            {selected && <circle cx={selected.x} cy={selected.y} r={24} fill="none" stroke={nodeColor(selected.id, techniques)} strokeWidth={1} className="map-breathe" />}
-
-            {/* Nodes */}
-            <g filter="url(#glow)">
-              {shown.map((p) => {
-                const c = nodeColor(p.id, techniques)
-                return p.kind === 'submission' ? (
-                  <circle key={p.id} cx={p.x} cy={p.y} r={5} fill={c} opacity={nodeOpacity(p)} />
-                ) : (
-                  <circle key={p.id} cx={p.x} cy={p.y} r={11} fill="#050607" stroke={c === NEUTRAL ? '#8a9098' : c} strokeWidth={1.7} opacity={nodeOpacity(p)} />
-                )
-              })}
-            </g>
+            {selected && <circle cx={selected.x} cy={selected.y} r={radius(selected) + 7} fill="none" stroke="#f2f3f5" strokeOpacity={0.5} strokeWidth={1} />}
             {shown.map((p) => (
               <circle key={p.id} cx={p.x} cy={p.y} r={22} fill="transparent" data-node={p.id} style={{ cursor: 'grab' }} />
             ))}
 
-            {/* Labels */}
-            <g fontFamily="Geist Variable, system-ui, sans-serif" textAnchor="middle" style={{ paintOrder: 'stroke' }} stroke="#000" strokeWidth={3} strokeLinejoin="round">
-              {shown.map((p) => (
-                <text
-                  key={p.id}
-                  x={p.x}
-                  y={p.kind === 'submission' ? p.y - 11 : p.y + 27}
-                  fontSize={p.kind === 'submission' ? 9.5 : 11}
-                  fontWeight={p.id === selectedPos ? 700 : 500}
-                  fill={p.id === selectedPos ? '#f2f3f5' : p.kind === 'submission' ? '#6b727a' : '#9aa0a6'}
-                  opacity={nodeOpacity(p)}
-                  pointerEvents="none"
-                >
-                  {p.name}
-                </text>
-              ))}
+            {/* Labels: every position; submissions and technique names only when zoomed in or in focus */}
+            <g fontFamily="Geist Variable, system-ui, sans-serif" textAnchor="middle" style={{ paintOrder: 'stroke' }} stroke="#000" strokeWidth={3} strokeLinejoin="round" pointerEvents="none">
+              {shown.map((p) => {
+                if (p.kind === 'submission' && !showSubLabel(p)) return null
+                return (
+                  <text
+                    key={p.id}
+                    x={p.x}
+                    y={p.kind === 'submission' ? p.y - 9 : p.y + radius(p) + 14}
+                    fontSize={p.kind === 'submission' ? 9.5 : 11.5}
+                    fontWeight={p.id === selectedPos ? 700 : p.kind === 'submission' ? 500 : 600}
+                    fill={p.id === selectedPos ? '#f2f3f5' : p.kind === 'submission' ? '#8a9098' : '#b4b9bf'}
+                    opacity={nodeOpacity(p)}
+                  >
+                    {p.name}
+                  </text>
+                )
+              })}
               {edges.map((g) => {
                 const t = techById.get(g.id)!
-                if (!showTechLabels(t)) return null
+                if (!showTechLabel(t)) return null
                 return (
-                  <text key={g.id} x={g.mid.x} y={g.mid.y - 8} fontSize={9.5} fill="#c9cdd2" pointerEvents="none" opacity={edgeOpacity(t)}>
+                  <text key={g.id} x={g.mid.x} y={g.mid.y - 8} fontSize={9.5} fill="#c9cdd2" opacity={edgeOpacity(t)}>
                     {t.name}
                   </text>
                 )
@@ -444,16 +474,7 @@ export function TechniqueMap({
               </g>
             )}
             {cursor && posMap.get(cursor.fromId) && (
-              <line
-                x1={posMap.get(cursor.fromId)!.x}
-                y1={posMap.get(cursor.fromId)!.y}
-                x2={cursor.x}
-                y2={cursor.y}
-                stroke="#f2f3f5"
-                strokeWidth={1.5}
-                strokeDasharray="4 5"
-                filter="url(#glow)"
-              />
+              <line x1={posMap.get(cursor.fromId)!.x} y1={posMap.get(cursor.fromId)!.y} x2={cursor.x} y2={cursor.y} stroke="#f2f3f5" strokeWidth={1.5} strokeDasharray="4 5" />
             )}
           </g>
         </svg>

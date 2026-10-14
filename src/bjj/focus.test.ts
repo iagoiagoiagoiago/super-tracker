@@ -17,13 +17,12 @@ const positions = [pos('half', 50), pos('back', -50), pos('side', -40), pos('sub
 const cycle: FocusCycle = { id: 'c', side: 'bottom', positionId: 'half', startedAt: 80 * DAY }
 
 describe('analyzeFocus', () => {
-  it('ranks working-most, finds neglected, caught and next-up techniques', () => {
+  it('ranks working-most, finds neglected and caught techniques', () => {
     const techniques = [
       tech('kneeShieldBack', 'half', 'back', 'hitting'),
       tech('underhookSweep', 'half', 'side', 'learning'),
       tech('lockdown', 'half', 'side', 'learning'),
-      tech('kneeCut', 'side', 'half', 'want'),
-      tech('slxEntry', 'half', 'back', 'want'),
+      tech('kneeCut', 'side', 'back', 'learning'), // an opponent's pass from top: not yours, but it catches you
       tech('backToSub', 'back', 'sub', 'agame'),
     ]
     const sessions = [
@@ -39,7 +38,6 @@ describe('analyzeFocus', () => {
     expect(a.workingMost.map((s) => s.technique.id)).toEqual(['kneeShieldBack', 'underhookSweep'])
     expect(a.neglected.map((s) => [s.technique.id, s.daysSince])).toEqual([['lockdown', 30]])
     expect(a.caught[0]).toMatchObject({ caught: 3 })
-    expect(a.nextUp.map((t) => t.id)).toEqual(['kneeCut', 'slxEntry'])
 
     const kinds = a.suggestions.map((s) => `${s.kind}:${s.techniqueId}`)
     expect(kinds).toContain('leak:kneeCut')

@@ -1,8 +1,9 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { migrateMuscleGroup } from '../lib/exerciseCatalog'
+import { wantsToBucket } from '../bjj/legacy'
 import type {
-  BjjNote,
   BjjSession,
+  BucketItem,
   Exercise,
   FocusCycle,
   MetaEntry,
@@ -21,7 +22,7 @@ export class SuperTrackerDB extends Dexie {
   positions!: EntityTable<Position, 'id'>
   techniques!: EntityTable<Technique, 'id'>
   bjjSessions!: EntityTable<BjjSession, 'id'>
-  bjjNotes!: EntityTable<BjjNote, 'id'>
+  bucketItems!: EntityTable<BucketItem, 'id'>
   focusCycles!: EntityTable<FocusCycle, 'id'>
   meta!: EntityTable<MetaEntry, 'key'>
 
@@ -59,6 +60,18 @@ export class SuperTrackerDB extends Dexie {
       bjjSessions: 'id, date, externalId',
       bjjNotes: 'id, updatedAt, externalId',
     })
+    // v5: the bucket list replaces journal notes (dropped) and the "want" technique status. Want techniques become
+    // bucket items; ones a session refers to stay on the map as "learning"; positions only they used go away.
+    this.version(5)
+      .stores({ bjjNotes: null, bucketItems: 'id, createdAt, externalId' })
+      .upgrade(async (tx) => {
+        const [positions, techniques, sessions] = await Promise.all(['positions', 'techniques', 'bjjSessions'].map((t) => tx.table(t).toArray()))
+        const out = wantsToBucket(positions, techniques, sessions)
+        await tx.table('techniques').bulkDelete(out.removedTechniqueIds)
+        for (const id of out.promotedTechniqueIds) await tx.table('techniques').update(id, { status: 'learning' })
+        await tx.table('positions').bulkDelete(out.removedPositionIds)
+        await tx.table('bucketItems').bulkAdd(out.items)
+      })
   }
 }
 
@@ -72,7 +85,7 @@ export const TABLE_NAMES = [
   'positions',
   'techniques',
   'bjjSessions',
-  'bjjNotes',
+  'bucketItems',
   'focusCycles',
   'meta',
 ] as const

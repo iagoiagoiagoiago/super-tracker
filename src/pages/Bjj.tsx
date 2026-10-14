@@ -7,7 +7,7 @@ import { relativeDays } from '../lib/time'
 import { Link, useLocation } from 'react-router-dom'
 import { BjjNav } from '../components/BjjNav'
 import { Sheet } from '../components/Sheet'
-import { TechniqueMap, type MapFilter, type MapSelection, type TechniqueMapHandle } from '../components/TechniqueMap'
+import { TechniqueMap, type MapSelection, type TechniqueMapHandle } from '../components/TechniqueMap'
 import { db } from '../db/db'
 import type { ID, Position, Side, Technique, TechniqueStatus } from '../db/schema'
 
@@ -56,7 +56,7 @@ export function Bjj() {
   const usage = useMemo(() => data?.usage ?? new Map<ID, Usage>(), [data])
 
   const [selection, setSelection] = useState<MapSelection>(initialSelect)
-  const [filter, setFilter] = useState<MapFilter | 'focus'>('all')
+  const [focusOnly, setFocusOnly] = useState(false)
   const [hidden, setHidden] = useState<Set<TechniqueStatus>>(() => loadHidden())
   const toggleStatus = (s: TechniqueStatus) => {
     const next = new Set(hidden)
@@ -112,14 +112,13 @@ export function Bjj() {
           techniques={visibleTechniques}
           dimUnconnected={hidden.size > 0}
           hits={hits}
-          filter={filter === 'focus' ? 'all' : filter}
-          highlight={filter === 'focus' ? focusTechniques : undefined}
+          highlight={focusOnly && focusIds.size ? focusTechniques : undefined}
           selection={selection}
           onSelect={onSelect}
           onMove={(id, x, y) => void movePosition(id, x, y)}
           onConnect={(fromId, toId) => setNewTech({ fromId, toId })}
           handleRef={(h) => (mapHandle.current = h)}
-          topInset={150}
+          topInset={112}
           bottomInset={TAB_BAR + 40}
           selectReserve={TAB_BAR + 250}
         />
@@ -145,39 +144,34 @@ export function Bjj() {
             </div>
           </div>
           {!empty && (
-            <>
-              <div className="flex gap-1.5">
-                {(focusIds.size ? (['all', 'bucket', 'focus'] as const) : (['all', 'bucket'] as const)).map((f) => (
+            <div role="group" aria-label="Show on map" className="-ml-2 flex items-center gap-0.5 text-[12px]">
+              {STATUS_ORDER.map((st) => {
+                const on = !hidden.has(st)
+                return (
                   <button
-                    key={f}
-                    onClick={() => setFilter(f)}
-                    aria-pressed={filter === f}
-                    className={`h-[30px] rounded-full px-3 text-[13px] font-semibold ${filter === f ? 'bg-text text-bg' : 'border border-line bg-black/60 text-muted'}`}
+                    key={st}
+                    onClick={() => toggleStatus(st)}
+                    aria-pressed={on}
+                    className={`flex h-9 items-center gap-1.5 rounded-full px-2 font-semibold transition-opacity ${on ? 'text-muted' : 'text-dim line-through opacity-60'}`}
                   >
-                    {f === 'all' ? 'All' : f === 'focus' ? 'Focus' : `Bucket list · ${techniques.filter((t) => t.status === 'want').length}`}
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: on ? STATUS_COLOR[st] : 'transparent', border: `1px solid ${STATUS_COLOR[st]}`, boxShadow: on ? `0 0 6px ${STATUS_COLOR[st]}` : undefined }}
+                    />
+                    {STATUS_SHORT[st]}
                   </button>
-                ))}
-              </div>
-              <div role="group" aria-label="Show statuses" className="-ml-2 flex gap-0.5 text-[11px]">
-                {STATUS_ORDER.map((s) => {
-                  const on = !hidden.has(s)
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => toggleStatus(s)}
-                      aria-pressed={on}
-                      className={`flex h-8 items-center gap-1.5 rounded-full px-2 transition-opacity ${on ? 'text-muted' : 'text-dim line-through opacity-60'}`}
-                    >
-                      <span
-                        className="h-[7px] w-[7px] rounded-full"
-                        style={{ background: on ? STATUS_COLOR[s] : 'transparent', border: `1px solid ${STATUS_COLOR[s]}`, boxShadow: on ? `0 0 6px ${STATUS_COLOR[s]}` : undefined }}
-                      />
-                      {STATUS_SHORT[s]}
-                    </button>
-                  )
-                })}
-              </div>
-            </>
+                )
+              })}
+              {focusIds.size > 0 && (
+                <button
+                  onClick={() => setFocusOnly(!focusOnly)}
+                  aria-pressed={focusOnly}
+                  className={`ml-auto h-8 rounded-full px-3 font-semibold ${focusOnly ? 'bg-text text-bg' : 'border border-line bg-black/60 text-muted'}`}
+                >
+                  Focus
+                </button>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -195,7 +189,7 @@ export function Bjj() {
 
       {mode === 'list' && (
         <TechniqueList
-          techniques={filter === 'bucket' ? techniques.filter((t) => t.status === 'want') : techniques}
+          techniques={techniques}
           posById={posById}
           onOpen={(t) => {
             setSelection({ type: 'technique', id: t.id })
@@ -310,7 +304,7 @@ function StatusDot({ status }: { status: TechniqueStatus }) {
 
 function StatusPicker({ value, onChange }: { value: TechniqueStatus; onChange: (s: TechniqueStatus) => void }) {
   return (
-    <div role="radiogroup" aria-label="Status" className="grid grid-cols-4 gap-1.5">
+    <div role="radiogroup" aria-label="Status" className="grid grid-cols-3 gap-1.5">
       {STATUS_ORDER.map((s) => {
         const on = value === s
         return (
@@ -455,7 +449,7 @@ function MiniStat({ value, label, tone }: { value: number; label: string; tone?:
 
 function TechniqueList({ techniques, posById, onOpen }: { techniques: Technique[]; posById: Map<ID, Position>; onOpen: (t: Technique) => void }) {
   return (
-    <div className="absolute inset-0 overflow-y-auto px-4 pt-[calc(env(safe-area-inset-top)+150px)]" style={{ paddingBottom: TAB_BAR + 24 }}>
+    <div className="absolute inset-0 overflow-y-auto px-4 pt-[calc(env(safe-area-inset-top)+120px)]" style={{ paddingBottom: TAB_BAR + 24 }}>
       <div className="mx-auto flex max-w-lg flex-col gap-5">
         {techniques.length === 0 && <p className="pt-10 text-center text-sm text-faint">No techniques here yet.</p>}
         {[...STATUS_ORDER].reverse().map((s) => {

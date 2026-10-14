@@ -14,7 +14,7 @@ type ListKey = 'taught' | 'hit' | 'caughtBy'
 const LISTS: { key: ListKey; title: string; hint: string; pickerTitle: string; status: TechniqueStatus }[] = [
   { key: 'taught', title: 'Taught in class', hint: 'What the coach showed', pickerTitle: 'Taught in class', status: 'learning' },
   { key: 'hit', title: 'Hit in sparring', hint: 'What you landed', pickerTitle: 'Hit in sparring', status: 'hitting' },
-  { key: 'caughtBy', title: 'Got caught by', hint: 'What partners landed on you', pickerTitle: 'Got caught by', status: 'want' },
+  { key: 'caughtBy', title: 'Got caught by', hint: 'What partners landed on you', pickerTitle: 'Got caught by', status: 'learning' },
 ]
 
 const RPE_LABEL = (r: number) => (r <= 3 ? 'Easy' : r <= 6 ? 'Moderate' : r <= 8 ? 'Hard' : 'All-out')

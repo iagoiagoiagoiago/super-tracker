@@ -2,27 +2,24 @@ import type { ID, Position, Side, Technique, TechniqueStatus } from '../db/schem
 
 /** Neon status colors. Hex (not CSS vars) because SVG presentation attributes don't resolve var(). */
 export const STATUS_COLOR: Record<TechniqueStatus, string> = {
-  want: '#b86bff',
   learning: '#22e6ff',
   hitting: '#b6ff3b',
   agame: '#ff3da6',
 }
 
 export const STATUS_LABEL: Record<TechniqueStatus, string> = {
-  want: 'Want to learn',
   learning: 'Learning',
   hitting: 'Hitting',
   agame: 'A-game',
 }
 
 export const STATUS_SHORT: Record<TechniqueStatus, string> = {
-  want: 'Want',
   learning: 'Learning',
   hitting: 'Hitting',
   agame: 'A-game',
 }
 
-export const STATUS_ORDER: TechniqueStatus[] = ['want', 'learning', 'hitting', 'agame']
+export const STATUS_ORDER: TechniqueStatus[] = ['learning', 'hitting', 'agame']
 
 export const NEUTRAL = '#5e656d'
 

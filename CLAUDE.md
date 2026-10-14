@@ -26,8 +26,8 @@ Commands: `npm run dev` · `npm run build` · `npm test` · `npm run lint`. CI r
 Dark only. Two visual languages:
 
 - **Gym = Strong-style.** Copy Strong's layout and interactions (not its branding). Clean, practical, near-black.
-- **BJJ = neon.** Black background, faint dot grid, glowing nodes, "slimy" gooey neon edges (SVG goo filter),
-  slow pulse along edges in the technique's direction. Minimal chrome; details in bottom sheets.
+- **BJJ = neon.** Black background, faint dot grid, glowing nodes and neon edges. Minimal chrome; details in bottom
+  sheets. No SVG filters or looping animations on the map (they made it lag on iPhone).
 
 Tokens (`src/index.css`):
 
@@ -42,7 +42,7 @@ Tokens (`src/index.css`):
 | done | #22C55E | completed sets, Finish |
 | danger | #FF6B5E | errors, "getting caught" |
 | gym / bjj / both | #3D8BFF / #B6FF3B / #4FD1C0 | sport tags in charts and calendar (both = days with gym + BJJ) |
-| want / learning / hitting / agame | #B86BFF / #22E6FF / #B6FF3B / #FF3DA6 | technique status neons |
+| learning / hitting / agame | #22E6FF / #B6FF3B / #FF3DA6 | technique status neons |
 
 Type: Geist Variable (self-hosted via @fontsource), tabular numbers. Titles 30px/800. Touch targets ≥ 44px.
 Bottom tab bar: **Home · History · Train · Gym · BJJ**. Respect safe areas (`pt-safe`, `pb-safe`).
@@ -53,7 +53,7 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
 - Gym: `exercises` (kind: weight_reps | bodyweight_plus | reps_only | duration), `templates`, `workouts`
   (source: app | strong), `sets` (one row per set, `done`, `completedAt`).
 - BJJ: `positions` (bubbles; side top|bottom; kind position|submission), `techniques` (arrows fromId → toId,
-  status want → learning → hitting → agame), `bjjSessions`, `focusCycles` (one active per side).
+  status learning → hitting → agame), `bjjSessions`, `focusCycles` (one active per side), `bucketItems` (DB v5).
 - `meta` key/value (e.g. `lastBackupAt`).
 
 ## Feature spec
@@ -102,13 +102,15 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
 
 ### BJJ
 - Technique map: positions are bubbles, techniques are arrows. Top/passing zone above a dashed divider,
-  bottom/guard below. Neon color = status; edge thickness/brightness = how often it's hit. Filters: All /
-  Bucket list (status want) / Focus. The map starts **empty**: adding a position and dragging an arrow between
+  bottom/guard below. Neon color = status; edge thickness/brightness = how often it's hit. Status chips + Focus toggle. The map starts **empty**: adding a position and dragging an arrow between
   two bubbles must be effortless. Techniques can also be created from the session log.
 - Map implementation (`src/components/TechniqueMap.tsx`, `src/bjj/map.ts`): custom SVG, no graph library.
-  World coordinates with the divider at y = 0 (a position's side is derived from its y on drag). Layers: goo
-  (thick blurred strokes + blobs through a threshold filter = the slime), glow cores, white flow dashes on
-  hitting/A-game techniques, direction chevrons, invisible wide hit paths, nodes, labels. Gestures: drag
+  World coordinates with the divider at y = 0 (a position's side is derived from its y on drag). **Performance:**
+  no SVG filters (glow = radial-gradient halos + a wide translucent stroke), no looping animation, and pan / pinch /
+  wheel write the transform straight to the DOM (`applyView`) and commit to React state only when the gesture ends.
+  **Hierarchy:** learning edges are faint and thin (`BASE_ALPHA`) and learning-only bubbles dim, so hitting / A-game
+  carry the picture; selecting a position or technique brings its edges forward with direction arrows and labels.
+  Bubble size grows with technique count; submission labels show only when zoomed in or in focus. Gestures: drag
   background = pan, pinch/wheel = zoom, drag node = move, tap node/edge = select, drag the + handle of the
   selected node onto another node = new technique (or "+ Technique from here", then tap the target).
   Fits all positions once on first open, then only the user moves the view. Edge width uses `edgeWidth(status,
@@ -124,18 +126,27 @@ The design mockups live in a Claude Design canvas ("SUPER TRACKER Screens").
   `TYPICAL_*`), `notes` is free text, `source: 'import'` + `externalId` mark imported ones. Class types: Class
   (regular no-gi), Open mat, Drilling, Wrestling (incl. judo/takedowns), MMA, Fundamentals, Advanced, Gi, Private,
   Competition. History shows attendance-only sessions as a slim row.
-- Journal (`bjjNotes`, DB v4; `/bjj/notes`, third title in the Map/Focus/Notes switcher): titled notes with optional
-  written date, pin, search. For game plans and reflections that aren't one session.
+- **Bucket list** (`bucketItems`, `src/bjj/bucket.ts`, `src/pages/BjjBucket.tsx` at `/bjj/bucket`, third title in the
+  Map/Focus/Bucket switcher): free-text things you want to pull off, optional note. Tap the circle = one rep
+  (timestamp in `reps`), inline Undo for 4 s; the sheet edits text/note, shows rep dates, removes the last rep, marks
+  done ("Pulled off" section). Stable newest-first order so rows don't jump while tapping. Home BJJ card shows the
+  open count.
+- DB v5 dropped journal notes (`bjjNotes`) and the "want" status: want techniques became bucket items
+  (`wantsToBucket` in `src/bjj/legacy.ts`, route + notes kept as the item's note); want techniques a session refers
+  to stayed on the map as learning; positions only they used were removed. Backups are v2; v1 backups get the same
+  conversion on restore (`upgradeTables`).
 - **BJJ journal import** (`src/import/bjjJournal.ts`, Settings → Import BJJ journal): JSON `format:
   "super-tracker-bjj"`, `version: 1` with positions / techniques (by position names) / sessions (techniques by
-  name, `YYYY-MM-DD` dates at local noon) / notes. Merges by case-insensitive name: existing positions keep their
-  place, existing techniques keep their status (notes only filled where empty), sessions and notes with an `id`
-  already imported are skipped. Personal journal files are never committed; check one with
+  name, `YYYY-MM-DD` dates at local noon) / bucket (`{text, note?}`). Old files' `want` techniques become bucket
+  items (or learning if a session in the file uses them; positions only they used aren't created); `notes` are
+  ignored. Merges by case-insensitive name: existing positions keep their place, existing techniques keep their
+  status (notes only filled where empty), sessions with an `id` already imported and bucket items with the same
+  text are skipped. Personal journal files are never committed; check one with
   `BJJ_JOURNAL=/path/to/file.json npm test`.
 - Map status legend chips are toggles (hide e.g. Want + Learning to see the core game); hidden statuses persist
   per device in localStorage. Positions with nothing visible fade.
 - Focus tab: one focus position per side (top + bottom), each a cycle with start date and goal; archived cycles
-  form a history. Sections: working most, neglected, getting caught, next up (bucket list from this position).
+  form a history. Sections: working most, neglected, getting caught.
   Rule-based suggestions: dead end, leak, stale, ready to promote.
 - Focus implementation (`src/bjj/focus.ts` = pure `analyzeFocus`, `src/pages/BjjFocus.tsx` at `/bjj/focus`, reached
   via the Map/Focus large-title switcher). Counts use sessions inside the cycle. "Getting caught" = caught-by

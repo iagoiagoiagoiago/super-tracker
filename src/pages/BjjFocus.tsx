@@ -16,7 +16,7 @@ const SIDES: { value: Side; label: string; title: string }[] = [
 
 const TAG: Record<SuggestionKind, { label: string; color: string }> = {
   leak: { label: 'LEAK', color: '#ff6b5e' },
-  dead_end: { label: 'DEAD END', color: STATUS_COLOR.want },
+  dead_end: { label: 'DEAD END', color: '#b86bff' },
   promote: { label: 'PROMOTE', color: STATUS_COLOR.agame },
   stale: { label: 'STALE', color: STATUS_COLOR.learning },
   adherence: { label: 'FOCUS', color: '#8a9098' },
@@ -75,7 +75,7 @@ export function BjjFocus() {
 
       {data && !a && (
         <div className="flex flex-col items-center gap-3 rounded-[20px] border border-dashed border-line px-6 py-10 text-center">
-          <span className="h-4 w-4 rounded-full border-2 border-want bg-black shadow-[0_0_14px_var(--color-want)]" />
+          <span className="h-4 w-4 rounded-full border-2 border-learning bg-black shadow-[0_0_14px_var(--color-learning)]" />
           <p className="text-[15px] font-semibold">No {side} focus yet</p>
           <p className="max-w-xs text-[13px] text-muted">
             Pick one {side === 'bottom' ? 'guard' : 'top'} position to build around. Your sessions then show what's working, what's slipping and what to do next.
@@ -113,12 +113,6 @@ export function BjjFocus() {
           <Section title="Getting caught" empty="Nobody has caught you with anything mapped here this cycle.">
             {a.caught.map((s) => (
               <Row key={s.technique.id} t={s.technique} meta={`${s.caught}×`} metaColor="#ff9b92" onClick={() => openOnMap({ type: 'technique', id: s.technique.id })} />
-            ))}
-          </Section>
-
-          <Section title="Next up" empty="No bucket-list techniques here. Add one on the map with status Want.">
-            {a.nextUp.map((t) => (
-              <Row key={t.id} t={t} meta="bucket list" onClick={() => openOnMap({ type: 'technique', id: t.id })} />
             ))}
           </Section>
 

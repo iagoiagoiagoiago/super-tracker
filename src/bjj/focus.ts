@@ -44,7 +44,6 @@ export interface FocusAnalysis {
   workingMost: TechniqueStat[]
   neglected: (TechniqueStat & { daysSince: number })[]
   caught: TechniqueStat[]
-  nextUp: Technique[]
   suggestions: Suggestion[]
 }
 
@@ -110,8 +109,6 @@ export function analyzeFocus(
     .filter((s) => s.caught > 0)
     .sort((a, b) => b.caught - a.caught)
   const caught = caughtRelevant.slice(0, 4)
-
-  const nextUp = own.filter((t) => t.status === 'want').sort((a, b) => a.name.localeCompare(b.name))
 
   // ---------- suggestions ----------
   const suggestions: Suggestion[] = []
@@ -180,7 +177,6 @@ export function analyzeFocus(
     workingMost,
     neglected,
     caught,
-    nextUp,
     suggestions,
   }
 }

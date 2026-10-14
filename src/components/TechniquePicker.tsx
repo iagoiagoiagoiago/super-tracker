@@ -76,7 +76,6 @@ export function TechniquePicker({
             positions={positions}
             techniques={techniques}
             hits={new Map()}
-            filter="all"
             selection={focusPos ? { type: 'position', id: focusPos } : null}
             onSelect={onMapSelect}
             onMove={() => {}}

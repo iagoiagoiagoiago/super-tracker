@@ -5,8 +5,7 @@ import { requestPersistentStorage } from './db/storage'
 import { ActiveWorkout } from './pages/ActiveWorkout'
 import { Bjj } from './pages/Bjj'
 import { BjjFocus } from './pages/BjjFocus'
-import { BjjNoteEditor } from './pages/BjjNoteEditor'
-import { BjjNotes } from './pages/BjjNotes'
+import { BjjBucket } from './pages/BjjBucket'
 import { ImportBjj } from './pages/ImportBjj'
 import { BjjSession } from './pages/BjjSession'
 import { ExerciseDetail } from './pages/ExerciseDetail'
@@ -39,8 +38,8 @@ export default function App() {
         <Route path="/gym/exercises/:id" element={<ExerciseDetail />} />
         <Route path="/bjj" element={<Bjj />} />
         <Route path="/bjj/focus" element={<BjjFocus />} />
-        <Route path="/bjj/notes" element={<BjjNotes />} />
-        <Route path="/bjj/notes/:id" element={<BjjNoteEditor />} />
+        <Route path="/bjj/bucket" element={<BjjBucket />} />
+        <Route path="/bjj/notes/*" element={<Navigate to="/bjj/bucket" replace />} />
         <Route path="/import/bjj" element={<ImportBjj />} />
         <Route path="/bjj/log" element={<BjjSession />} />
         <Route path="/bjj/session/:id" element={<BjjSession />} />

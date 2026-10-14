@@ -19,7 +19,7 @@ export function ImportBjj() {
     setBusy(true)
     try {
       const plan = await planJournal(db, parseJournal(await file.text()))
-      const nothing = !plan.newPositions.length && !plan.newTechniques.length && !plan.newSessions.length && !plan.newNotes.length
+      const nothing = !plan.newPositions.length && !plan.newTechniques.length && !plan.newSessions.length && !plan.newBucket.length
       if (nothing) setError('Everything in this file is already in the app.')
       else setStep({ name: 'review', plan })
     } catch (e) {
@@ -52,7 +52,7 @@ export function ImportBjj() {
       <Page title="Import BJJ journal" action={back}>
         <Card>
           <p className="text-sm leading-relaxed text-muted">
-            Adds positions, techniques, past sessions and journal notes from a journal file. It merges by name with your current map:
+            Adds positions, techniques, past sessions and bucket list items from a journal file. It merges by name with your current map:
             nothing you already have is moved or overwritten, and importing the same file twice adds nothing.
           </p>
         </Card>
@@ -80,11 +80,11 @@ export function ImportBjj() {
     return (
       <Page title="Imported" action={back}>
         <Card>
-          <Rows rows={[['Positions', r.positions], ['Techniques', r.techniques], ['Sessions', r.sessions], ['Notes', r.notes]]} />
+          <Rows rows={[['Positions', r.positions], ['Techniques', r.techniques], ['Sessions', r.sessions], ['Bucket list', r.bucket]]} />
         </Card>
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => navigate('/bjj')} className="h-12 rounded-2xl bg-bjj font-bold text-[#0a0b0c]">Open map</button>
-          <button onClick={() => navigate('/bjj/notes')} className="h-12 rounded-2xl bg-raised font-bold">Open notes</button>
+          <button onClick={() => navigate('/bjj/bucket')} className="h-12 rounded-2xl bg-raised font-bold">Open bucket list</button>
         </div>
       </Page>
     )
@@ -99,7 +99,7 @@ export function ImportBjj() {
     <Page title="Review import" action={back}>
       <div className="grid grid-cols-2 gap-2">
         <Tile value={plan.newSessions.length} label={dates.length ? `sessions · ${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}` : 'sessions'} />
-        <Tile value={plan.newNotes.length} label="journal notes" />
+        <Tile value={plan.newBucket.length} label="bucket list items" />
         <Tile value={plan.newPositions.length} label="new positions" />
         <Tile value={plan.newTechniques.length} label="new techniques" />
       </div>
@@ -107,7 +107,7 @@ export function ImportBjj() {
       {plan.newTechniques.length > 0 && (
         <Card>
           <SectionTitle aside="you can change any of these on the map">Technique statuses</SectionTitle>
-          <div className="grid grid-cols-4 gap-1.5 text-[11px] text-faint">
+          <div className="grid grid-cols-3 gap-1.5 text-[11px] text-faint">
             {byStatus.map(({ s, n }) => (
               <div key={s}>
                 <div className="text-[18px] font-bold text-text">{n}</div>
@@ -121,7 +121,7 @@ export function ImportBjj() {
         </Card>
       )}
 
-      {(plan.existingPositions > 0 || plan.existingTechniques > 0 || plan.skippedSessions > 0 || plan.skippedNotes > 0) && (
+      {(plan.existingPositions > 0 || plan.existingTechniques > 0 || plan.skippedSessions > 0 || plan.skippedBucket > 0) && (
         <Card>
           <SectionTitle>Already in the app</SectionTitle>
           <Rows
@@ -129,7 +129,7 @@ export function ImportBjj() {
               ['Positions (kept where they are)', plan.existingPositions],
               ['Techniques (your status kept)', plan.existingTechniques],
               ['Sessions skipped', plan.skippedSessions],
-              ['Notes skipped', plan.skippedNotes],
+              ['Bucket items already listed', plan.skippedBucket],
             ].filter(([, v]) => (v as number) > 0) as [string, number][]}
           />
         </Card>
